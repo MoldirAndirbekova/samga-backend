@@ -1,6 +1,5 @@
 import datetime
-from typing import List, Optional
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Depends
 from prisma.models import User
 from pydantic import BaseModel
 from src.prisma import prisma
@@ -8,38 +7,34 @@ from src.utils.auth import (
     encryptPassword,
     signJWT,
     validatePassword,
+    decodeJWT,
 )
 
 router = APIRouter()
-
 
 class SignIn(BaseModel):
     email: str
     password: str
 
-
-class SignInOut(BaseModel):
-    token: str
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
     user: User
-
 
 @router.post("/auth/sign-in", tags=["auth"])
 async def sign_in(signIn: SignIn):
-    user = await prisma.user.find_first(
-        where={
-            "email": signIn.email,
-        }
-    )
+    user = await prisma.user.find_first(where={"email": signIn.email})
 
-    validated = validatePassword(signIn.password, user.password)
+    if not user or not validatePassword(signIn.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
     del user.password
 
-    if validated:
-        token = signJWT(user.id)
-        return SignInOut(token=token, user=user)
-
-    return None
-
+    return TokenResponse(
+        access_token=signJWT(user.id),
+        refresh_token=signJWT(user.id, is_refresh=True),
+        user=user
+    )
 
 class SignUp(BaseModel):
     email: str
@@ -48,17 +43,30 @@ class SignUp(BaseModel):
 
 @router.post("/auth/sign-up", tags=["auth"])
 async def sign_up(user: SignUp):
-    password = encryptPassword(user.password)
-    created = await prisma.user.create(
+    encrypted_password = encryptPassword(user.password)
+
+    created_user = await prisma.user.create(
         {
             "email": user.email,
-            "password": encryptPassword(user.password),
+            "password": encrypted_password,
             "full_name": user.full_name
         }
     )
 
-    return created
+    return created_user
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+@router.post("/auth/refresh", tags=["auth"])
+async def refresh_token(request: RefreshRequest):
+    decoded = decodeJWT(request.refresh_token, is_refresh=True)
+
+    if not decoded:
+        raise HTTPException(status_code=403, detail="Invalid or expired refresh token")
+
+    new_access_token = signJWT(decoded["userId"])
+    return {"access_token": new_access_token}
 
 @router.get("/auth/", tags=["auth"])
 async def auth():
