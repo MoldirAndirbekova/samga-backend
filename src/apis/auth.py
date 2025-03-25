@@ -44,7 +44,7 @@ async def sign_in(signIn: SignIn):
 class SignUp(BaseModel):
     email: str
     password: str
-    name: Optional[str] = None
+    full_name: str
 
 @router.post("/auth/sign-up", tags=["auth"])
 async def sign_up(user: SignUp):
@@ -53,7 +53,7 @@ async def sign_up(user: SignUp):
         {
             "email": user.email,
             "password": encryptPassword(user.password),
-            "name": user.name,
+            "full_name": user.full_name
         }
     )
 
