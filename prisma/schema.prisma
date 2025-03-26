@@ -8,9 +8,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Category {
+  motor
+  cognitive
+}
+
 model User {
   id            String   @id @default(cuid()) @db.VarChar(255)
   email         String   @unique @db.VarChar(255)
   password      String   @db.VarChar(255)
   full_name     String  @db.VarChar(255)
+  children      Child[]  
 }
+
+model Child {
+  id        String   @id @default(cuid()) @db.VarChar(255)
+  full_name String   @db.VarChar(255)
+  user_id   String   
+  user      User     @relation(fields: [user_id], references: [id])
+}
+
+model Game {
+    id          String   @id @default(cuid()) @db.VarChar(255)
+    name        String   @db.VarChar(255)
+    category    Category
+}
+
