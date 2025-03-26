@@ -4,12 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.apis import apis
 from src.prisma import prisma
 from settings import settings
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await prisma.connect()
-    yield
-    await prisma.disconnect()
+from database import lifespan
 
 app = FastAPI(lifespan=lifespan)
 
