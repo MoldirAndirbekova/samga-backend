@@ -1,3 +1,3 @@
-from prisma import Prisma
+from src.prisma import Prisma
 
 prisma = Prisma()
