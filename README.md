@@ -14,6 +14,14 @@
    ```bash
     pip install -r requirements.txt
 
+4. **Build and start database**:
+   ```bash
+   docker compose build db
+   docker compose up -d db
+5. **Apply migrations to db**:
+   ```bash
+   make docker-migrate-db
+
 ### Running the Application
 
 1. **Run the FastAPI application:**:
