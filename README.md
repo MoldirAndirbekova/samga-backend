@@ -20,7 +20,7 @@
    docker compose up -d db
 5. **Apply migrations to db**:
    ```bash
-   make docker-migrate-db
+   prisma migrate deploy
 
 ### Running the Application
 
