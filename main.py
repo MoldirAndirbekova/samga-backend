@@ -1,7 +1,23 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from src.apis import apis
+from src.prisma import prisma
+from settings import settings
+from database import lifespan
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(apis, prefix="/apis")
 
 @app.get("/")
-async def get_data():
-    return {"data": "some data"}
+def read_root():
+    return {"version": "1.0.0"}
