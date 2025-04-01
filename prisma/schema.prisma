@@ -20,6 +20,7 @@ model User {
   password      String   @db.VarChar(255)
   full_name     String  @db.VarChar(255)
   children      Child[]  
+  feedbacks     Feedback[]
 }
 
 model Child {
@@ -34,5 +35,13 @@ model Game {
   name        String   @db.VarChar(255)
   category_id String   
   category    Category @relation(fields: [category_id], references: [id])
+}
+
+model Feedback {
+  id       String  @id @default(cuid()) @db.VarChar(255)
+  user_id   String
+  rating    Int     
+  comment   String  
+  user      User    @relation(fields: [user_id], references: [id])
 }
 
