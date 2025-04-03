@@ -20,7 +20,7 @@
    docker compose up -d db
 5. **Apply migrations to db**:
    ```bash
-   prisma migrate deploy
+   npx prisma migrate deploy
 
 ### Running the Application
 

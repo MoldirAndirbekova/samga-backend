@@ -33,6 +33,7 @@ model Child {
 model Game {
   id          String   @id @default(cuid()) @db.VarChar(255)
   name        String   @db.VarChar(255)
+  image_url   String   @db.VarChar(255)
   category_id String   
   category    Category @relation(fields: [category_id], references: [id])
 }

@@ -11,10 +11,10 @@ async def init_db():
         categories[category_name] = category.id
     
     default_games = [
-        {"name": "Bubble pop", "category_id": categories["motor"]},
-        {"name": "Tennis", "category_id": categories["motor"]},
-        {"name": "Draw it", "category_id": categories["cognitive"]},
-        {"name": "Fruit slice", "category_id": categories["motor"]},
+        {"name": "Bubble pop", "category_id": categories["motor"], "image_url": "/bubble_pop.png"},
+        {"name": "Tennis", "category_id": categories["motor"], "image_url": "/tennis.png"},
+        {"name": "Draw it", "category_id": categories["cognitive"], "image_url": "/draw_it.png"},
+        {"name": "Fruit slice", "category_id": categories["motor"], "image_url": "/friut_slice.png"},
     ]
 
     for game in default_games:
