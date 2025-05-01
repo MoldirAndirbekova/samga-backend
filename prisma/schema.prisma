@@ -1,0 +1,76 @@
+generator client {
+  provider  = "prisma-client-py"
+  interface = "asyncio"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id    String  @id @default(cuid())
+  name  String  @unique
+  games Game[]
+}
+
+model User {
+  id            String   @id @default(cuid()) @db.VarChar(255)
+  email         String   @unique @db.VarChar(255)
+  password      String   @db.VarChar(255)
+  full_name     String  @db.VarChar(255)
+  children      Child[]  
+  reset_tokens  PasswordResetToken[]
+}
+
+model Child {
+  id          String        @id @default(cuid()) @db.VarChar(255)
+  full_name   String        @db.VarChar(255)
+  user_id     String   
+  user        User          @relation(fields: [user_id], references: [id])
+  gameReports GameReport[]
+}
+
+model Game {
+  id          String        @id @default(cuid()) @db.VarChar(255)
+  name        String        @db.VarChar(255)
+  category_id String   
+  category    Category      @relation(fields: [category_id], references: [id])
+  gameReports GameReport[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id])
+  expires_at DateTime
+  created_at DateTime @default(now())
+  used      Boolean  @default(false)
+}
+
+model GameReport {
+  id              String         @id @default(cuid())
+  gameId          String         // The UUID generated for the game session
+  gameTypeId      String         // Reference to the Game model
+  game            Game           @relation(fields: [gameTypeId], references: [id])
+  childId         String?        // Optional - if the game was played by a child
+  child           Child?         @relation(fields: [childId], references: [id])
+  difficulty      String         // EASY, MEDIUM, HARD
+  score           Int            // Main score
+  leftScore       Int            // Left side score (for ping pong)
+  rightScore      Int            // Right side score or penalties (for bubble pop)
+  durationSeconds Int            // Game duration in seconds
+  timestamp       DateTime       @default(now())
+  skillMetrics    SkillMetric[]
+}
+
+model SkillMetric {
+  id              String       @id @default(cuid())
+  gameReportId    String
+  gameReport      GameReport   @relation(fields: [gameReportId], references: [id], onDelete: Cascade)
+  skillName       String       // e.g., hand_eye_coordination, agility, focus, reaction_time
+  value           Float        // The score for this skill (0-100)
+}
+
+
