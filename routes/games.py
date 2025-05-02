@@ -13,6 +13,7 @@ import uuid
 import mediapipe as mp  # Add MediaPipe import
 from .bubble_pop import BubblePopGameState  # Import BubblePopGameState
 from .letter_tracing import LetterTracingGameState
+from .fruit_slicer import FruitSlicerGameState
 import jwt
 
 router = APIRouter()
@@ -589,6 +590,9 @@ async def create_game(request: GameStartRequest, current_user = Depends(get_curr
     elif request.game_type == "letter_tracing":
         print(f"Initializing Letter Tracing game with difficulty: {request.difficulty}")
         active_games[game_id] = LetterTracingGameState(game_id, request.difficulty, request.child_id)
+    elif request.game_type == "fruit_slicer":
+        print(f"Initializing Fruit Slicer game with difficulty: {request.difficulty}")
+        active_games[game_id] = FruitSlicerGameState(game_id, request.difficulty, request.child_id)
     else:
         # Default to PingPong game
         print(f"Initializing PingPong game with difficulty: {request.difficulty}")
@@ -654,21 +658,35 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                     
                     if img is not None:
-                        # Process the image for hand tracking
-                        result = process_image_for_hands(img)
-                        
-                        # Update hands/hand in game state
-                        if hasattr(game, 'update_hands'):
-                            # For games that use multiple hands
-                            left_hand = result.left
-                            right_hand = result.right
-                            game.update_hands(left_hand, right_hand)
-                        elif hasattr(game, 'update_hand'):
-                            # For games that use single hand (like letter tracing)
-                            # Use the first detected hand (left or right)
-                            hand = result.left if result.left else result.right
-                            if hand:
-                                game.update_hand(hand)
+                        if isinstance(game, FruitSlicerGameState):
+                            # Process the image for pose tracking
+                            pose_result = process_image_for_pose(img)
+                            
+                            # Update nose position in game state
+                            if pose_result and "nose" in pose_result:
+                                game.update_pose(pose_result["nose"])
+                                
+                                # Send tracking results back to client
+                                await websocket.send_json({
+                                    "type": "pose_tracking_result",
+                                    "data": pose_result
+                                })
+                        else:
+                            # Process the image for hand tracking
+                            result = process_image_for_hands(img)
+                            
+                            # Update hands/hand in game state
+                            if hasattr(game, 'update_hands'):
+                                # For games that use multiple hands
+                                left_hand = result.left
+                                right_hand = result.right
+                                game.update_hands(left_hand, right_hand)
+                            elif hasattr(game, 'update_hand'):
+                                # For games that use single hand (like letter tracing)
+                                # Use the first detected hand (left or right)
+                                hand = result.left if result.left else result.right
+                                if hand:
+                                    game.update_hand(hand)
                         
                         # Update the camera frame for AR overlay
                         if hasattr(game, 'update_camera_frame'):
@@ -723,28 +741,39 @@ async def game_websocket(websocket: WebSocket, game_id: str):
             frame = game.render_frame()
             
             # Prepare game state data to send
+            # In the WebSocket handler, modify the game_state_data preparation:
             game_state_data = {
                 "frame": frame,
                 "game_active": game.game_active,
                 "game_over": game.game_over,
             }
-            
+
             # Add score and time info, handling different game types
             if hasattr(game, 'score'):
                 game_state_data["score"] = game.score
-            
-            if hasattr(game, 'left_score'):
-                game_state_data["left_score"] = game.left_score
-                game_state_data["right_score"] = game.right_score
-            
-            if hasattr(game, 'ball'):
-                game_state_data["ball"] = game.ball
-                game_state_data["left_paddle"] = game.left_paddle
-                game_state_data["right_paddle"] = game.right_paddle
-                game_state_data["current_speed"] = game.current_speed
-            
+
             if hasattr(game, 'time_remaining'):
                 game_state_data["time_remaining"] = game.time_remaining
+
+            # Add combo information for Fruit Slicer
+            if hasattr(game, 'combo'):
+                game_state_data["combo"] = game.combo
+                game_state_data["max_combo"] = game.max_combo
+
+            # Add fruits data for Fruit Slicer
+            if hasattr(game, 'fruits'):
+                # Send basic fruit data (position, size, state)
+                game_state_data["fruits"] = [
+                    {
+                        "id": fruit.id,
+                        "x": fruit.x,
+                        "y": fruit.y,
+                        "size": fruit.size,
+                        "sliced": fruit.sliced,
+                        "is_bomb": getattr(fruit, 'is_bomb', False)
+                    }
+                    for fruit in game.fruits
+                ]
             
             # Send game state
             await websocket.send_json({
@@ -771,6 +800,76 @@ async def game_websocket(websocket: WebSocket, game_id: str):
         print(f"Error in game WebSocket: {str(e)}")
         if game_id in active_games:
             del active_games[game_id]
+
+
+def process_image_for_pose(img):
+    """
+    Process an image to detect face/pose using MediaPipe Face Mesh.
+    Returns nose position for Fruit Slicer game.
+    """
+    height, width = img.shape[:2]
+    result = {}
+
+    # Initialize MediaPipe Face Mesh solution
+    mp_face_mesh = mp.solutions.face_mesh
+    face_mesh = mp_face_mesh.FaceMesh(
+        max_num_faces=1,
+        refine_landmarks=True,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
+    )
+    
+    # Convert image to RGB
+    rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Process the image with Face Mesh
+    results = face_mesh.process(rgb_image)
+    
+    if results.multi_face_landmarks:
+        # Get the first face
+        face_landmarks = results.multi_face_landmarks[0]
+        
+        # Get nose tip (landmark index 4)
+        nose_landmark = face_landmarks.landmark[4]
+        
+        # Convert normalized coordinates to pixel coordinates
+        nose_x = nose_landmark.x * width
+        nose_y = nose_landmark.y * height
+        
+        # Add nose position to result
+        result["nose"] = {
+            "x": float(nose_x),
+            "y": float(nose_y),
+            "score": 1.0
+        }
+    
+    # If Face Mesh fails, fallback to MediaPipe Pose (like in original code)
+    if "nose" not in result:
+        mp_pose = mp.solutions.pose
+        pose = mp_pose.Pose(
+            static_image_mode=False,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
+        )
+        
+        pose_results = pose.process(rgb_image)
+        
+        if pose_results.pose_landmarks:
+            # Get nose landmark
+            nose_landmark = pose_results.pose_landmarks.landmark[mp_pose.PoseLandmark.NOSE]
+            
+            # Convert to pixel coordinates
+            nose_x = nose_landmark.x * width
+            nose_y = nose_landmark.y * height
+            
+            # Add to result
+            result["nose"] = {
+                "x": float(nose_x),
+                "y": float(nose_y),
+                "score": float(nose_landmark.visibility)
+            }
+    
+    return result
 
 @router.post("/handtracking", response_model=HandTrackingResponse)
 async def track_hands(request: HandTrackingRequest):

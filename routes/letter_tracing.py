@@ -18,8 +18,8 @@ class LetterTracingGameState:
         self.game_id = game_id
         self.difficulty = difficulty
         self.child_id = child_id
-        self.game_width = 700  # Default values, will be updated
-        self.game_height = 400
+        self.game_width = 800  # Default values, will be updated
+        self.game_height = 600
         
         # Game settings based on difficulty
         self.difficulty_settings = {

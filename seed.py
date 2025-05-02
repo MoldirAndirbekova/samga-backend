@@ -11,6 +11,9 @@ async def seed_database():
     motion_category = await prisma.category.find_first(
         where={"name": "Motion Games"}
     )
+    cognitive_category = await prisma.category.find_first(
+        where={"name": "Cognitive Games"}
+    )
     
     # If motion_category doesn't exist, create it
     if not motion_category:
@@ -23,6 +26,17 @@ async def seed_database():
         )
     else:
         print("Motion Games category already exists")
+
+    if not cognitive_category:
+        print("Creating Cognitive Games category...")
+        cognitive_category = await prisma.category.create(
+            data={
+                "id": str(uuid.uuid4()),
+                "name": "Cognitive Games"
+            }
+        )
+    else:
+        print("Cognitive Games category already exists")
     
     # Check if games exist
     ping_pong_game = await prisma.game.find_unique(
@@ -35,6 +49,10 @@ async def seed_database():
 
     letter_tracing_game = await prisma.game.find_unique(
         where={"id": "letter-tracing"}
+    )
+
+    fruit_slicer_game = await prisma.game.find_unique(
+        where={"id": "fruit-slicer"}
     )
     
     # Create games if they don't exist - using the correct schema structure
@@ -85,6 +103,29 @@ async def seed_database():
         )
     else:
         print("Letter Tracing game already exists")
+
+    if fruit_slicer_game and fruit_slicer_game.name == "Fruit Slacer":
+        print("Fixing Fruit Slicer game name...")
+        await prisma.game.update(
+            where={"id": "fruit-slicer"},
+            data={"name": "Fruit Slicer"}  # Correct spelling
+        )
+
+    if not fruit_slicer_game:
+        print("Creating Fruit Slicer game...")
+        await prisma.game.create(
+            data={
+                "id": "fruit-slicer",
+                "name": "Fruit Slicer",
+                "category": {
+                    "connect": {
+                        "id": motion_category.id
+                    }
+                }
+            }
+        )
+    else:
+        print("Fruit Slicer game already exists")
 
     print("Database seeding complete")
 
