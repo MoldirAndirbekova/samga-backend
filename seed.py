@@ -32,6 +32,10 @@ async def seed_database():
     bubble_pop_game = await prisma.game.find_unique(
         where={"id": "bubble-pop"}
     )
+
+    letter_tracing_game = await prisma.game.find_unique(
+        where={"id": "letter-tracing"}
+    )
     
     # Create games if they don't exist - using the correct schema structure
     if not ping_pong_game:
@@ -65,7 +69,23 @@ async def seed_database():
         )
     else:
         print("Bubble Pop game already exists")
-    
+
+    if not letter_tracing_game:
+        print("Creating Letter Tracing game...")
+        await prisma.game.create(
+            data={
+                "id": "letter-tracing",
+                "name": "Letter Tracing",
+                "category": {
+                    "connect": {
+                        "id": motion_category.id
+                    }
+                }
+            }
+        )
+    else:
+        print("Letter Tracing game already exists")
+
     print("Database seeding complete")
 
 if __name__ == "__main__":

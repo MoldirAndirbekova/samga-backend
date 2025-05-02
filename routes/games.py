@@ -12,6 +12,7 @@ from datetime import datetime
 import uuid
 import mediapipe as mp  # Add MediaPipe import
 from .bubble_pop import BubblePopGameState  # Import BubblePopGameState
+from .letter_tracing import LetterTracingGameState
 import jwt
 
 router = APIRouter()
@@ -338,6 +339,15 @@ class GameState:
         cv2.line(img, (GAME_WIDTH // 2, 0), (GAME_WIDTH // 2, GAME_HEIGHT), (255, 255, 255), 2)
         cv2.circle(img, (GAME_WIDTH // 2, GAME_HEIGHT // 2), 50, (255, 255, 255), 2)
         
+        # Draw ball
+        cv2.circle(
+            img, 
+            (int(self.ball["x"]), int(self.ball["y"])), 
+            BALL_RADIUS, 
+            (255, 255, 255),  # White
+            -1
+        )
+
         # Draw paddles
         # Left paddle
         cv2.rectangle(
@@ -354,15 +364,6 @@ class GameState:
             (GAME_WIDTH - PADDLE_WIDTH, int(self.right_paddle["y"])), 
             (GAME_WIDTH, int(self.right_paddle["y"] + self.paddle_height)),
             (0, 255, 0),  # Green
-            -1
-        )
-        
-        # Draw ball
-        cv2.circle(
-            img, 
-            (int(self.ball["x"]), int(self.ball["y"])), 
-            BALL_RADIUS, 
-            (255, 255, 255),  # White
             -1
         )
         
@@ -585,6 +586,9 @@ async def create_game(request: GameStartRequest, current_user = Depends(get_curr
     if request.game_type == "bubble_pop":
         print(f"Initializing Bubble Pop game with difficulty: {request.difficulty}")
         active_games[game_id] = BubblePopGameState(game_id, request.difficulty, request.child_id)
+    elif request.game_type == "letter_tracing":
+        print(f"Initializing Letter Tracing game with difficulty: {request.difficulty}")
+        active_games[game_id] = LetterTracingGameState(game_id, request.difficulty, request.child_id)
     else:
         # Default to PingPong game
         print(f"Initializing PingPong game with difficulty: {request.difficulty}")
@@ -635,7 +639,6 @@ async def game_websocket(websocket: WebSocket, game_id: str):
     
     try:
         while True:
-            # Receive message from client
             data = await websocket.receive_text()
             message = json.loads(data)
             
@@ -654,12 +657,20 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                         # Process the image for hand tracking
                         result = process_image_for_hands(img)
                         
-                        # Update hands in game state
-                        left_hand = result.left
-                        right_hand = result.right
-                        game.update_hands(left_hand, right_hand)
+                        # Update hands/hand in game state
+                        if hasattr(game, 'update_hands'):
+                            # For games that use multiple hands
+                            left_hand = result.left
+                            right_hand = result.right
+                            game.update_hands(left_hand, right_hand)
+                        elif hasattr(game, 'update_hand'):
+                            # For games that use single hand (like letter tracing)
+                            # Use the first detected hand (left or right)
+                            hand = result.left if result.left else result.right
+                            if hand:
+                                game.update_hand(hand)
                         
-                        # NEW: Update the camera frame in BubblePopGameState for AR overlay
+                        # Update the camera frame for AR overlay
                         if hasattr(game, 'update_camera_frame'):
                             game.update_camera_frame(img)
                         
@@ -667,8 +678,8 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                         await websocket.send_json({
                             "type": "hand_tracking_result",
                             "data": {
-                                "left": left_hand,
-                                "right": right_hand
+                                "left": result.left,
+                                "right": result.right
                             }
                         })
                 except Exception as e:
@@ -791,15 +802,15 @@ def process_image_for_hands(img):
     """
     height, width = img.shape[:2]
     result = HandTrackingResponse()
+
+    left_hand = None
+    right_hand = None
     
     rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
     mp_results = hands_detector.process(rgb_image)
     
     if mp_results.multi_hand_landmarks:
-        left_hand = None
-        right_hand = None
-        
         for hand_idx, hand_landmarks in enumerate(mp_results.multi_hand_landmarks):
             landmarks = []
             for lm in hand_landmarks.landmark:
@@ -809,10 +820,9 @@ def process_image_for_hands(img):
                     "z": lm.z * width
                 })
             
-            # Get palm center using landmarks
-            # MediaPipe landmark 0 is the wrist
-            # Landmarks 5, 9, 13, 17 are the base of each finger
-            # We'll use the center of these points as the palm center
+            # Calculate both palm center and index finger tip
+            
+            # Palm center calculation (for backward compatibility with existing games)
             palm_landmarks = [
                 landmarks[0],  # Wrist
                 landmarks[5],  # Index finger base
@@ -821,22 +831,13 @@ def process_image_for_hands(img):
                 landmarks[17]  # Pinky finger base
             ]
             
-            # Calculate palm center
-            cx = sum(lm["x"] for lm in palm_landmarks) / len(palm_landmarks)
-            cy = sum(lm["y"] for lm in palm_landmarks) / len(palm_landmarks)
+            palm_center_x = sum(lm["x"] for lm in palm_landmarks) / len(palm_landmarks)
+            palm_center_y = sum(lm["y"] for lm in palm_landmarks) / len(palm_landmarks)
             
-            # Get the center of the palm using a more accurate calculation
-            # This uses landmarks that are more stable for palm tracking
-            palm_base = landmarks[0]  # Wrist
-            palm_mid = landmarks[9]   # Middle finger base
-            palm_center_x = (palm_base["x"] + palm_mid["x"]) / 2
-            palm_center_y = (palm_base["y"] + palm_mid["y"]) / 2
+            # Index finger tip (landmark 8)
+            index_finger_tip = landmarks[8]
             
-            # Use the more accurate palm center calculation
-            cx = palm_center_x
-            cy = palm_center_y
-            
-            # Calculate bounding box (useful for hand area estimation)
+            # Calculate bounding box
             x_coords = [lm["x"] for lm in landmarks]
             y_coords = [lm["y"] for lm in landmarks]
             
@@ -846,19 +847,22 @@ def process_image_for_hands(img):
             bbox_width = x_max - x_min
             bbox_height = y_max - y_min
             
-            # Determine hand type (left or right)
+            # Determine hand type
             hand_type = "unknown"
             if mp_results.multi_handedness and len(mp_results.multi_handedness) > hand_idx:
                 handedness = mp_results.multi_handedness[hand_idx].classification[0].label
                 hand_type = handedness.lower()
             else:
                 # Fallback to position-based determination
-                hand_type = "left" if cx < width / 2 else "right"
+                hand_type = "left" if palm_center_x < width / 2 else "right"
             
             area = bbox_width * bbox_height
             
+            # Create hand object with both palm center and index finger tip
             hand = {
-                "position": {"x": float(cx), "y": float(cy)},
+                "position": {"x": float(palm_center_x), "y": float(palm_center_y)},  # Maintain backward compatibility
+                "palm_center": {"x": float(palm_center_x), "y": float(palm_center_y)},
+                "index_finger_tip": {"x": float(index_finger_tip["x"]), "y": float(index_finger_tip["y"])},
                 "bbox": {
                     "x": float(x_min),
                     "y": float(y_min),
@@ -868,8 +872,7 @@ def process_image_for_hands(img):
                 "score": 1.0,
                 "area": float(area),
                 "landmarks": landmarks,
-                "handedness": hand_type,
-                "palm_center": {"x": float(cx), "y": float(cy)}  # Explicit palm center
+                "handedness": hand_type
             }
             
             if hand_type == "left" and (left_hand is None or hand["area"] > left_hand["area"]):
