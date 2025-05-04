@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install system dependencies
+# Установка системных зависимостей
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
@@ -11,38 +11,38 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust
+# Установка Rust (для Prisma)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Set working directory
+# Установка рабочей директории
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
+# Копирование зависимостей и установка Python-библиотек
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Установка Prisma Python
+RUN pip install prisma
+
+# Копирование остального кода (включая start.sh)
 COPY . .
 
-# Generate Prisma client
-RUN pip install prisma
+# Исправление прав и переносов строк (важно для Windows пользователей)
+RUN chmod +x start.sh && sed -i 's/\r//' start.sh
+
+# Генерация Prisma клиента
 RUN prisma generate
 
-# Set environment variables
+# Настройка переменных окружения
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONMALLOC=malloc
 ENV MALLOC_TRIM_THRESHOLD_=100000
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Make the startup script executable
-RUN chmod +x start.sh
-
-# Expose port
+# Открываем порт
 EXPOSE 8000
 
-# Use the startup script
-CMD ["./start.sh"] 
+# Запуск приложения через start.sh
+CMD ["./start.sh"]

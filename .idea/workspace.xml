@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b1ff7671-6f0c-4b83-b791-9aafc89a3a12" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/car/car1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/car/car2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/car/car3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/car/car4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/car/level3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle7.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle8.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/castle9.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/castle/level9.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/flower/flower1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/flower/flower2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/flower/flower3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/flower/flower4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/flower/level2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/home7.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/home/level7.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/level1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/mushroom1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/mushroom2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/mushroom3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/level6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/rainbow1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/rainbow2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/rainbow3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/rainbow4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/rainbow5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/rainbow/rainbow6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/level5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/train1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/train2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/train3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/train4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/train5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/train/train6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/tree/level4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/tree/tree1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/tree/tree2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/tree/tree3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/tree/tree4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/level8.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm7.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/game_assets/constructor/worm/worm8.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/seed.py" beforeDir="false" afterPath="$PROJECT_DIR$/seed.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
+  </component>
+  <component name="ProjectId" id="2wPKQjpVPJdr0hxSyZNb2bWjb1V" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/Admin/Downloads/samga-backend/game_assets/constructor",
+    "settings.editor.selected.configurable": "preferences.lookFeel"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Admin\Downloads\samga-backend\game_assets\constructor" />
+      <recent name="C:\Users\Admin\Downloads\samga-backend\Resources" />
+      <recent name="C:\Users\Admin\Downloads\samga-backend\Resources " />
+      <recent name="C:\Users\Admin\Downloads\samga-backend" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Admin\Downloads\samga-backend\games" />
+    </key>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b1ff7671-6f0c-4b83-b791-9aafc89a3a12" name="Changes" comment="" />
+      <created>1745937754923</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1745937754923</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
