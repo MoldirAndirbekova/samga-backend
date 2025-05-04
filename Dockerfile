@@ -34,6 +34,9 @@ RUN prisma generate
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONMALLOC=malloc
+ENV MALLOC_TRIM_THRESHOLD_=100000
+ENV PYTHONDONTWRITEBYTECODE=1
 
 # Make the startup script executable
 RUN chmod +x start.sh

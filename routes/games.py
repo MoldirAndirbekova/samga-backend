@@ -14,6 +14,7 @@ import mediapipe as mp  # Add MediaPipe import
 from .bubble_pop import BubblePopGameState  # Import BubblePopGameState
 from .letter_tracing import LetterTracingGameState
 from .fruit_slicer import FruitSlicerGameState
+from .snake import SnakeGameState
 import jwt
 
 router = APIRouter()
@@ -593,6 +594,9 @@ async def create_game(request: GameStartRequest, current_user = Depends(get_curr
     elif request.game_type == "fruit_slicer":
         print(f"Initializing Fruit Slicer game with difficulty: {request.difficulty}")
         active_games[game_id] = FruitSlicerGameState(game_id, request.difficulty, request.child_id)
+    elif request.game_type == "snake":
+        print(f"Initializing Snake game with difficulty: {request.difficulty}")
+        active_games[game_id] = SnakeGameState(game_id, request.difficulty, request.child_id)
     else:
         # Default to PingPong game
         print(f"Initializing PingPong game with difficulty: {request.difficulty}")

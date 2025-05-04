@@ -28,7 +28,7 @@ import uvicorn
 async def main():
     prisma = Prisma()
     await prisma.connect()
-    config = uvicorn.Config(app, host='0.0.0.0', port=8000, reload=True)
+    config = uvicorn.Config(app, host='0.0.0.0', port=8000, reload=True, workers=1, loop='asyncio')
     server = uvicorn.Server(config)
     await server.serve()
 
