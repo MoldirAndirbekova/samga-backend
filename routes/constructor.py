@@ -158,203 +158,234 @@ class ConstructorGameState:
         self.fps = 60
         self.frame_time = 1 / self.fps
 
-    def start_game(self, level=None):
-        """Start or restart the game with selected level"""
-        if level is not None:
-            self.selected_level = level
-        elif self.selected_level is None:
-            self.selected_level = self.current_level
+   
+def start_game(self, level=None):
+    """Start or restart the game with selected level"""
+    if level is not None:
+        self.selected_level = level
+    elif self.selected_level is None:
+        self.selected_level = self.current_level
 
-        print(f"Starting Constructor game id: {self.game_id} with level: {self.selected_level}")
+    print(f"Starting Constructor game id: {self.game_id} with level: {self.selected_level}")
+    
+    # Reset scores
+    self.score = 0
+    self.pieces_placed = 0
 
-        # Reset scores
-        self.score = 0
-        self.pieces_placed = 0
+    # First show the preview
+    self.showing_preview = True
+    self.preview_start_time = datetime.now()
+    self.game_active = False
+    self.game_started = True
 
-        # First show the preview
-        self.showing_preview = True
-        self.preview_start_time = datetime.now()
-        self.game_active = False
-        self.game_started = True
+    # Debug log for level folders
+    level_data = LEVELS[self.selected_level - 1]
+    folder = level_data["folder"]
+    print(f"Selected level {self.selected_level}: {level_data['name']} with folder: {folder}")
+    
+    # Debug possible asset paths
+    possible_paths = [
+        os.path.join("game_assets", "constructor", folder),
+        os.path.join("assets", "constructor", folder),
+        os.path.join("static", "constructor", folder),
+        os.path.join(folder)
+    ]
+    
+    for path in possible_paths:
+        exists = os.path.exists(path)
+        print(f"Checking path: {path} - Exists: {exists}")
+        if exists:
+            try:
+                files = os.listdir(path)
+                print(f"  Files: {', '.join(files[:5])}{'...' if len(files) > 5 else ''}")
+            except Exception as e:
+                print(f"  Error listing directory: {e}")
 
-        # Prepare level data
-        self.load_level_data()
-
-    def load_level_data(self):
-        """Load data for the current level"""
+    # Prepare level data
+    self.load_level_data()
+ 
+    def load_level_data(self): 
         if self.selected_level is None or self.selected_level < 1 or self.selected_level > len(LEVELS):
             print(f"Invalid level: {self.selected_level}")
+        return
+
+    level_data = LEVELS[self.selected_level - 1]
+    self.time_remaining = level_data["duration"]
+
+    # Load level elements
+    folder = level_data["folder"]
+    
+    # Try all possible asset paths in a more systematic way
+    possible_paths = [
+        os.path.join("game_assets", "constructor", folder),
+        os.path.join("assets", "constructor", folder),
+        os.path.join("static", "constructor", folder),
+        os.path.join("game_assets", "constructor", str(self.selected_level)),  # Try numeric folder
+        os.path.join("assets", "constructor", str(self.selected_level)),       # Try numeric folder
+        os.path.join("static", "constructor", str(self.selected_level)),       # Try numeric folder
+        os.path.join(folder),  # Direct folder name
+        os.path.join("constructor", folder),  # Try just constructor/folder
+    ]
+    
+    asset_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            asset_path = path
+            print(f"Found assets in path: {asset_path}")
+            break
+    
+    if not asset_path:
+        print(f"ERROR: Could not find assets for level {self.selected_level} ({folder})")
+        # Default to level 1 as fallback instead of returning
+        self.selected_level = 1
+        return self.load_level_data()  # Recursively try with level 1
+    
+    # Print directory contents to debug
+    print(f"Contents of {asset_path}:")
+    try:
+        for file in os.listdir(asset_path):
+            print(f"  - {file}")
+    except Exception as e:
+        print(f"Error listing directory: {e}")
+
+    # Load preview image - try multiple possible filenames
+    preview_image_candidates = [
+        os.path.join(asset_path, f"level{self.selected_level}.png"),
+        os.path.join(asset_path, f"preview.png"),
+        os.path.join(asset_path, f"{folder}.png"),
+        os.path.join(asset_path, f"level{self.selected_level}_preview.png")
+    ]
+    
+    self.preview_image_path = None
+    for preview_path in preview_image_candidates:
+        if os.path.exists(preview_path):
+            self.preview_image_path = preview_path
+            print(f"Found preview image: {self.preview_image_path}")
+            break
+    
+    if not self.preview_image_path:
+        print(f"Warning: No preview image found for level {self.selected_level}")
+        # Try to find any PNG file as a fallback
+        for file in os.listdir(asset_path):
+            if file.lower().endswith('.png') and not file.lower().startswith("piece"):
+                self.preview_image_path = os.path.join(asset_path, file)
+                print(f"Using fallback preview image: {self.preview_image_path}")
+                break
+
+    # Load draggable elements
+    self.elements = []
+    try:
+        # Look for specific element patterns in filenames
+        element_files = [f for f in os.listdir(asset_path) if 
+                        (not f.lower().startswith("level") and 
+                         not f.lower() == "preview.png" and
+                         not f.lower() == f"{folder}.png" and
+                         f.lower().endswith(('.png', '.jpg', '.jpeg')))]
+        
+        # If no elements found, look for pieces* or part* files
+        if not element_files:
+            element_files = [f for f in os.listdir(asset_path) if 
+                           (f.lower().startswith(("piece", "part", "element")) and 
+                            f.lower().endswith(('.png', '.jpg', '.jpeg')))]
+        
+        print(f"Found {len(element_files)} elements in {asset_path}")
+
+        self.total_pieces = len(element_files)
+        
+        if self.total_pieces == 0:
+            print(f"ERROR: No element pieces found for level {self.selected_level}")
             return
+            
+        # Rest of the function remains unchanged...
+        center_x = GAME_WIDTH // 2
+        center_y = GAME_HEIGHT // 2
 
-        level_data = LEVELS[self.selected_level - 1]
-        self.time_remaining = level_data["duration"]
+        # Create a simple grid pattern for target positions
+        self.target_positions = []
+        grid_size = int(math.ceil(math.sqrt(self.total_pieces)))
+        spacing = 100
 
-        # Load level elements
-        folder = level_data["folder"]
+        for i in range(self.total_pieces):
+            row = i // grid_size
+            col = i % grid_size
+            target_x = center_x - (grid_size * spacing) // 2 + col * spacing
+            target_y = center_y - (grid_size * spacing) // 2 + row * spacing
+            self.target_positions.append([target_x, target_y])
 
-        # Check if folder exists in game assets
-        asset_path = os.path.join("game_assets", "constructor", folder)
-        if not os.path.exists(asset_path):
-            print(f"Warning: Asset folder {asset_path} not found")
-            # Try alternative paths
-            alt_paths = [
-                os.path.join("assets", "constructor", folder),
-                os.path.join("static", "constructor", folder),
-                os.path.join(folder)  # Direct folder name
-            ]
-            for alt_path in alt_paths:
-                if os.path.exists(alt_path):
-                    asset_path = alt_path
-                    print(f"Found assets in alternative path: {asset_path}")
-                    break
-            else:
-                print(f"ERROR: Could not find assets for level {self.selected_level} ({folder})")
-                return
+        for i, filename in enumerate(element_files):
+            file_path = os.path.join(asset_path, filename)
+            # Start position (random around edges)
+            start_x = random.randint(50, GAME_WIDTH - 150)
+            start_y = random.randint(50, GAME_HEIGHT - 150)
 
-        # Load preview image - this will be shown first
-        self.preview_image_path = os.path.join(asset_path, f"level{self.selected_level}.png")
-        if not os.path.exists(self.preview_image_path):
-            print(f"Warning: Preview image not found: {self.preview_image_path}")
+            # Target position
+            target_pos = self.target_positions[i] if i < len(self.target_positions) else [center_x, center_y]
 
-        # Load draggable elements
-        self.elements = []
-        try:
-            element_files = [f for f in os.listdir(asset_path) if
-                             not f.lower().startswith("level") and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-            print(f"Found {len(element_files)} elements in {asset_path}")
+            element = DragElement(file_path, [start_x, start_y], target_pos, i, level_data["speed"])
+            self.elements.append(element)
+            print(f"Loaded element: {filename}")
 
-            self.total_pieces = len(element_files)
+    except Exception as e:
+        print(f"Error loading elements: {e}")
+        import traceback
+        traceback.print_exc()
 
-            # Define target positions (center of screen in a pattern)
-            # You can customize this based on each level's requirements
-            center_x = GAME_WIDTH // 2
-            center_y = GAME_HEIGHT // 2
+def update_game_state(self):
+    """Update the game state for one frame"""
+    if not self.game_started:
+        return
 
-            # Create a simple grid pattern for target positions
-            self.target_positions = []
-            grid_size = int(math.ceil(math.sqrt(self.total_pieces)))
-            spacing = 100
+    now = datetime.now()
 
-            for i in range(self.total_pieces):
-                row = i // grid_size
-                col = i % grid_size
-                target_x = center_x - (grid_size * spacing) // 2 + col * spacing
-                target_y = center_y - (grid_size * spacing) // 2 + row * spacing
-                self.target_positions.append([target_x, target_y])
+    # Handle preview phase
+    if self.showing_preview:
+        preview_elapsed = (now - self.preview_start_time).total_seconds()
+        if preview_elapsed >= PREVIEW_DURATION:
+            self.showing_preview = False
+            self.game_active = True
+            self.start_time = now
+            self.last_update = now
+        return
 
-            for i, filename in enumerate(element_files):
-                file_path = os.path.join(asset_path, filename)
-                # Start position (random around edges)
-                start_x = random.randint(50, GAME_WIDTH - 150)
-                start_y = random.randint(50, GAME_HEIGHT - 150)
+    if not self.game_active or self.game_over:
+        return
 
-                # Target position
-                target_pos = self.target_positions[i] if i < len(self.target_positions) else [center_x, center_y]
+    # Update delta time
+    self.last_update = now
 
-                element = DragElement(file_path, [start_x, start_y], target_pos, i, level_data["speed"])
-                self.elements.append(element)
-                print(f"Loaded element: {filename}")
+    # Update game timer
+    elapsed_seconds = (now - self.start_time).total_seconds()
+    
+    # Check if level data is available (fix for level issues)
+    if self.selected_level is None or self.selected_level < 1 or self.selected_level > len(LEVELS):
+        print(f"Fixing invalid level: {self.selected_level}")
+        self.selected_level = 1  # Default to level 1
+    
+    self.time_remaining = max(0, LEVELS[self.selected_level - 1]["duration"] - int(elapsed_seconds))
 
-        except Exception as e:
-            print(f"Error loading elements: {e}")
+    # Check if all pieces are placed
+    if self.total_pieces > 0 and self.pieces_placed >= self.total_pieces:
+        self.game_over = True
+        self.game_active = False
 
-    def update_hands(self, left_hand, right_hand):
-        """Update hand positions based on hand tracking data"""
-        self.left_hand = left_hand
-        self.right_hand = right_hand
+        # Add time bonus
+        time_bonus = int(self.time_remaining * TIME_BONUS_MULTIPLIER)
+        self.score += time_bonus
+        print(f"Level completed! Time bonus: {time_bonus}, Final score: {self.score}")
 
-    def update_camera_frame(self, frame):
-        """Store the current camera frame for AR overlay"""
-        self.current_camera_frame = frame
+        self.save_game_result()
+        return
 
-    def check_hand_interactions(self):
-        """Check for hand interactions with elements"""
-        if not self.elements:
-            return
+    # Check if time is up
+    if self.time_remaining <= 0:
+        self.game_over = True
+        self.game_active = False
+        print(f"Time's up! Pieces placed: {self.pieces_placed}/{self.total_pieces}, Score: {self.score}")
+        self.save_game_result()
+        return
 
-        # Scale hand coordinates to game canvas
-        scale_x = GAME_WIDTH / 640
-        scale_y = GAME_HEIGHT / 480
-
-        # Check both hands
-        for hand in [self.left_hand, self.right_hand]:
-            if hand and "index_finger_tip" in hand and "landmarks" in hand:
-                # Use index finger tip for precise positioning
-                hand_x = int(hand["index_finger_tip"]["x"] * scale_x)
-                hand_y = int(hand["index_finger_tip"]["y"] * scale_y)
-
-                # Check if making pinch gesture (thumb and index finger close)
-                if len(hand["landmarks"]) > 8:  # Ensure we have all hand landmarks
-                    thumb_tip = hand["landmarks"][4]  # Thumb tip
-                    index_tip = hand["landmarks"][8]  # Index finger tip
-
-                    # Calculate distance between thumb and index finger
-                    distance = ((thumb_tip["x"] - index_tip["x"]) ** 2 +
-                                (thumb_tip["y"] - index_tip["y"]) ** 2) ** 0.5
-
-                    # Pinch detected when fingers are close
-                    is_pinching = distance < 30  # Adjust threshold as needed
-
-                    # Update each element
-                    for element in self.elements:
-                        if element.update((hand_x, hand_y), is_pinching):
-                            # Element was just placed correctly
-                            self.pieces_placed += 1
-                            self.score += PLACEMENT_SCORE
-                            print(
-                                f"Piece placed correctly! Score: {self.score}, Pieces: {self.pieces_placed}/{self.total_pieces}")
-
-    def update_game_state(self):
-        """Update the game state for one frame"""
-        if not self.game_started:
-            return
-
-        now = datetime.now()
-
-        # Handle preview phase
-        if self.showing_preview:
-            preview_elapsed = (now - self.preview_start_time).total_seconds()
-            if preview_elapsed >= PREVIEW_DURATION:
-                self.showing_preview = False
-                self.game_active = True
-                self.start_time = now
-                self.last_update = now
-            return
-
-        if not self.game_active or self.game_over:
-            return
-
-        # Update delta time
-        self.last_update = now
-
-        # Update game timer
-        elapsed_seconds = (now - self.start_time).total_seconds()
-        self.time_remaining = max(0, LEVELS[self.selected_level - 1]["duration"] - int(elapsed_seconds))
-
-        # Check if all pieces are placed
-        if self.pieces_placed >= self.total_pieces:
-            self.game_over = True
-            self.game_active = False
-
-            # Add time bonus
-            time_bonus = int(self.time_remaining * TIME_BONUS_MULTIPLIER)
-            self.score += time_bonus
-            print(f"Level completed! Time bonus: {time_bonus}, Final score: {self.score}")
-
-            self.save_game_result()
-            return
-
-        # Check if time is up
-        if self.time_remaining <= 0:
-            self.game_over = True
-            self.game_active = False
-            print(f"Time's up! Pieces placed: {self.pieces_placed}/{self.total_pieces}, Score: {self.score}")
-            self.save_game_result()
-            return
-
-        # Check hand interactions
-        self.check_hand_interactions()
-
+    # Check hand interactions
+    self.check_hand_interactions()
     def save_game_result(self):
         """Save the game result for reporting"""
         if self.start_time:
@@ -676,4 +707,3 @@ class ConstructorGameState:
         else:
             cv2.putText(img, "TIME'S UP!", (GAME_WIDTH // 2 - 150, GAME_HEIGHT // 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-
