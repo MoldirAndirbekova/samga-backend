@@ -4,7 +4,6 @@ import uuid
 import os
 from datetime import datetime
 
-
 async def seed_database():
     print("Checking database for existing seed data...")
 
@@ -63,7 +62,27 @@ async def seed_database():
     constructor_game = await prisma.game.find_unique(
         where={"id": "constructor"}
     )
+    # Check if Rock Paper Scissors game exists
+    rock_paper_scissors_game = await prisma.game.find_unique(
+        where={"id": "rock-paper-scissors"}
+    )
 
+    # Create Rock Paper Scissors game if it doesn't exist
+    if not rock_paper_scissors_game:
+        print("Creating Rock Paper Scissors game...")
+        await prisma.game.create(
+            data={
+                "id": "rock-paper-scissors",
+                "name": "Rock Paper Scissors",
+                "category": {
+                    "connect": {
+                        "id": motion_category.id  # Connect to Motion Games category
+                    }
+                }
+            }
+        )
+    else:
+        print("Rock Paper Scissors game already exists")
     # Create games if they don't exist - using the correct schema structure
     if not ping_pong_game:
         print("Creating Ping Pong game...")

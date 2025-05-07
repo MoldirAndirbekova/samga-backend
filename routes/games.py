@@ -16,6 +16,7 @@ from .letter_tracing import LetterTracingGameState
 from .fruit_slicer import FruitSlicerGameState
 from .snake import SnakeGameState
 from .constructor import ConstructorGameState  # Import ConstructorGameState
+from .rock_paper_scissors import RockPaperScissorsGame
 import jwt
 
 router = APIRouter()
@@ -551,8 +552,6 @@ def save_bubble_pop_game_result(self):
 
         # Save to database using Prisma
         asyncio.create_task(self._persist_to_database(result, skill_metrics))
-
-
 async def _persist_to_database(self, result, skill_metrics):
     """Persist game result to database using Prisma"""
     try:
@@ -589,11 +588,132 @@ async def _persist_to_database(self, result, skill_metrics):
     except Exception as e:
         print(f"Error saving bubble pop game report to database: {str(e)}")
 
-
 # Apply the override and persistent method to BubblePopGameState
 BubblePopGameState.save_game_result = save_bubble_pop_game_result
 BubblePopGameState._persist_to_database = _persist_to_database
 
+
+def calculate_rps_skill_metrics(game):
+    """Calculate skill metrics for Rock Paper Scissors game"""
+    metrics = {}
+
+    # Total rounds played
+    total_rounds = game.current_round
+
+    if total_rounds > 0:
+        # Decision making: Based on win rate
+        win_rate = (game.score / total_rounds) * 100
+        metrics["decision_making"] = min(100, win_rate)
+
+        # Reaction time: Based on difficulty level
+        reaction_factor = 0
+        if game.difficulty == "EASY":
+            reaction_factor = 60
+        elif game.difficulty == "MEDIUM":
+            reaction_factor = 80
+        elif game.difficulty == "HARD":
+            reaction_factor = 100
+        metrics["reaction_time"] = reaction_factor
+
+        # Hand-eye coordination: Based on successful gestures recognition
+        metrics["hand_eye_coordination"] = min(100, win_rate + 20)
+
+        # Focus: Based on consecutive wins
+        focus_factor = 50 + (game.score * 5)
+        metrics["focus"] = min(100, focus_factor)
+    else:
+        # Default values if no rounds played
+        metrics["decision_making"] = 0
+        metrics["reaction_time"] = 0
+        metrics["hand_eye_coordination"] = 0
+        metrics["focus"] = 0
+
+    return metrics
+
+
+# Override RockPaperScissorsGame save_game_result method
+def save_rps_game_result(self):
+    """Save the game result for Rock Paper Scissors with skill metrics"""
+    if self.start_time:
+        duration = (datetime.now() - self.start_time).total_seconds()
+
+        # Calculate skill metrics
+        skill_metrics = calculate_rps_skill_metrics(self)
+
+        # Determine final result
+        if self.score > self.computer_score:
+            result = "win"
+        elif self.score < self.computer_score:
+            result = "lose"
+        else:
+            result = "draw"
+
+        # Create game result object
+        result = {
+            "game_id": self.game_id,
+            "difficulty": self.difficulty,
+            "score": self.score,
+            "duration_seconds": int(duration),
+            "left_score": self.score,  # Use score as left_score for compatibility
+            "right_score": self.computer_score,  # Use computer score as right_score for reporting
+            "timestamp": datetime.now().isoformat(),
+            "skills": skill_metrics,
+            "child_id": self.child_id,  # Include child_id in game results
+            "result": result
+        }
+
+        # Add to global results list
+        game_results.append(result)
+        print(f"Saved Rock Paper Scissors game result with skills: {skill_metrics}")
+
+        # Keep only the last 100 results to avoid memory issues
+        if len(game_results) > 100:
+            game_results.pop(0)
+
+        # Save to database using Prisma
+        asyncio.create_task(self._persist_to_database(result, skill_metrics))
+
+
+async def _persist_rps_to_database(self, result, skill_metrics):
+    """Persist game result to database using Prisma"""
+    try:
+        # Check if the database is connected
+        if not prisma.is_connected():
+            await prisma.connect()
+
+        # Use rock-paper-scissors game type ID
+        game_type_id = "rock-paper-scissors"
+
+        # Create the game report
+        game_report = await prisma.gamereport.create(
+            data={
+                "gameId": result["game_id"],
+                "gameTypeId": game_type_id,
+                "childId": result["child_id"],
+                "difficulty": result["difficulty"],
+                "score": result["score"],
+                "leftScore": result["left_score"],
+                "rightScore": result["right_score"],
+                "durationSeconds": result["duration_seconds"],
+                "skillMetrics": {
+                    "create": [
+                        {"skillName": skill, "value": value}
+                        for skill, value in skill_metrics.items()
+                    ]
+                }
+            },
+            include={"skillMetrics": True}
+        )
+
+        print(f"Saved Rock Paper Scissors game report to database with ID: {game_report.id}")
+
+    except Exception as e:
+        print(f"Error saving Rock Paper Scissors game report to database: {str(e)}")
+
+
+# Apply the override methods to RockPaperScissorsGame
+RockPaperScissorsGame.save_game_result = save_rps_game_result
+RockPaperScissorsGame._persist_to_database = _persist_rps_to_database
 
 @router.post("/game/start", response_model=Dict[str, Any])
 async def create_game(request: GameStartRequest, current_user=Depends(get_current_user)):
@@ -617,6 +737,9 @@ async def create_game(request: GameStartRequest, current_user=Depends(get_curren
     elif request.game_type == "constructor":
         print(f"Initializing Constructor game with difficulty: {request.difficulty}")
         active_games[game_id] = ConstructorGameState(game_id, request.difficulty, request.child_id)
+    elif request.game_type == "rock_paper_scissors":
+        print(f"Initializing Rock Paper Scissors game with difficulty: {request.difficulty}")
+        active_games[game_id] = RockPaperScissorsGame(game_id, request.difficulty, request.child_id)
     else:
         # Default to PingPong game
         print(f"Initializing PingPong game with difficulty: {request.difficulty}")
@@ -715,6 +838,30 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                         if hasattr(game, 'update_camera_frame'):
                             game.update_camera_frame(img)
 
+                        # Add to the WebSocket handler for hand tracking
+                        if isinstance(game, RockPaperScissorsGame):
+                            # Process the image with the detector
+                            hands, img = game.find_hands(img)
+
+                            # Update hands in game state
+                            if hands:
+                                game.handle_input(hands)
+
+                            # Update camera frame for AR overlay
+                            game.update_camera_frame(img)
+
+                        # Add to the game state data preparation section
+                        if isinstance(game, RockPaperScissorsGame):
+                            game_state_data["current_state"] = game.current_state
+                            game_state_data["computer_score"] = game.computer_score
+                            game_state_data["round_count"] = game.round_count
+                            game_state_data["current_round"] = game.current_round
+                            game_state_data["countdown"] = game.countdown if hasattr(game, 'countdown') else 0
+                            game_state_data["player_move"] = game.player_move if hasattr(game, 'player_move') else None
+                            game_state_data["computer_move"] = game.computer_move if hasattr(game,
+                                                                                             'computer_move') else None
+                            game_state_data["round_result"] = game.round_result if hasattr(game,
+                                                                                           'round_result') else None
                         # Send tracking results back to client
                         await websocket.send_json({
                             "type": "hand_tracking_result",
@@ -770,6 +917,15 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                 "game_active": game.game_active,
                 "game_over": game.game_over,
             }
+            if isinstance(game, RockPaperScissorsGame):
+                game_state_data["current_state"] = game.current_state
+                game_state_data["computer_score"] = game.computer_score
+                game_state_data["round_count"] = game.round_count
+                game_state_data["current_round"] = game.current_round
+                game_state_data["countdown"] = game.countdown if hasattr(game, 'countdown') else 0
+                game_state_data["player_move"] = game.player_move if hasattr(game, 'player_move') else None
+                game_state_data["computer_move"] = game.computer_move if hasattr(game, 'computer_move') else None
+                game_state_data["round_result"] = game.round_result if hasattr(game, 'round_result') else None
 
             # Add score and time info, handling different game types
             if hasattr(game, 'score'):
@@ -969,6 +1125,7 @@ def process_image_for_hands(img):
             bbox_width = x_max - x_min
             bbox_height = y_max - y_min
 
+
             # Determine hand type
             hand_type = "unknown"
             if mp_results.multi_handedness and len(mp_results.multi_handedness) > hand_idx:
@@ -1009,6 +1166,8 @@ def process_image_for_hands(img):
         result.right = right_hand
 
     return result
+
+
 
 @router.get("/categories", response_model=List[dict])
 async def get_categories(current_user = Depends(get_current_user)):
