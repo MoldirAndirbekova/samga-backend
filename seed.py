@@ -53,15 +53,19 @@ async def seed_database():
     )
 
     fruit_slicer_game = await prisma.game.find_unique(
-        where={"id": "fruit-slicer"}
+        where={"id": "fruit-slicer"},
+        include={"category": True}  # Include category to check current category
     )
 
     snake_game = await prisma.game.find_unique(
         where={"id": "snake"}
     )
+    
     constructor_game = await prisma.game.find_unique(
-        where={"id": "constructor"}
+        where={"id": "constructor"},
+        include={"category": True}  # Include category to check current category
     )
+    
     # Check if Rock Paper Scissors game exists
     rock_paper_scissors_game = await prisma.game.find_unique(
         where={"id": "rock-paper-scissors"}
@@ -105,11 +109,11 @@ async def seed_database():
         print("Ping Pong game already exists")
 
     if not bubble_pop_game:
-        print("Creating Bubble Pop game...")
+        print("Creating Balloon Pop game...")
         await prisma.game.create(
             data={
                 "id": "bubble-pop",
-                "name": "Bubble Pop",
+                "name": "Balloon Pop",  # Using the new name
                 "category": {
                     "connect": {
                         "id": motion_category.id
@@ -118,7 +122,16 @@ async def seed_database():
             }
         )
     else:
-        print("Bubble Pop game already exists")
+        print("Bubble/Balloon Pop game already exists")
+        # Check if the game needs name update
+        if hasattr(bubble_pop_game, 'name') and bubble_pop_game.name == "Bubble Pop":
+            print("Updating Bubble Pop game name to Balloon Pop...")
+            await prisma.game.update(
+                where={"id": "bubble-pop"},
+                data={"name": "Balloon Pop"}  # Update the name
+            )
+        else:
+            print("Game name already updated or couldn't determine current name")
 
     if not letter_tracing_game:
         print("Creating Letter Tracing game...")
@@ -151,13 +164,6 @@ async def seed_database():
     else:
         print("Category is already cognitive. No update needed.")
 
-    if fruit_slicer_game and fruit_slicer_game.name == "Fruit Slacer":
-        print("Fixing Fruit Slicer game name...")
-        await prisma.game.update(
-            where={"id": "fruit-slicer"},
-            data={"name": "Fruit Slicer"}  # Correct spelling
-        )
-
     if not fruit_slicer_game:
         print("Creating Fruit Slicer game...")
         await prisma.game.create(
@@ -166,13 +172,36 @@ async def seed_database():
                 "name": "Fruit Slicer",
                 "category": {
                     "connect": {
-                        "id": motion_category.id
+                        "id": cognitive_category.id  # Setting to cognitive from the start
                     }
                 }
             }
         )
     else:
         print("Fruit Slicer game already exists")
+        # Check if the game needs name correction
+        if fruit_slicer_game.name == "Fruit Slacer":
+            print("Fixing Fruit Slicer game name...")
+            await prisma.game.update(
+                where={"id": "fruit-slicer"},
+                data={"name": "Fruit Slicer"}  # Correct spelling
+            )
+        
+        # Check if it needs category update (from motion to cognitive)
+        if hasattr(fruit_slicer_game, 'category') and fruit_slicer_game.category and fruit_slicer_game.category.id == motion_category.id:
+            print("Updating Fruit Slicer category from motion to cognitive...")
+            await prisma.game.update(
+                where={"id": "fruit-slicer"},
+                data={
+                    "category": {
+                        "connect": {
+                            "id": cognitive_category.id
+                        }
+                    }
+                }
+            )
+        else:
+            print("Fruit Slicer already has the correct category or couldn't determine current category")
 
     if not snake_game:
         print("Creating Snake game...")
@@ -198,9 +227,28 @@ async def seed_database():
                 "name": "Constructor",
                 "category": {
                     "connect": {
-                        "id": cognitive_category.id  # Using cognitive category for this game
+                        "id": cognitive_category.id
+                    }
+                }
+            }
+        )
     else:               
         print("Constructor game already exists")
+        # Check if it needs category update (from motion to cognitive)
+        if hasattr(constructor_game, 'category') and constructor_game.category and constructor_game.category.id == motion_category.id:
+            print("Updating Constructor category from motion to cognitive...")
+            await prisma.game.update(
+                where={"id": "constructor"},
+                data={
+                    "category": {
+                        "connect": {
+                            "id": cognitive_category.id
+                        }
+                    }
+                }
+            )
+        else:
+            print("Constructor already has the correct category or couldn't determine current category")
                       
     if not flappy_bird_game:
         print("Creating Flappy bird game")

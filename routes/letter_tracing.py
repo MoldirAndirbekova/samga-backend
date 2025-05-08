@@ -114,7 +114,15 @@ class LetterTracingGameState:
         
         # Draw the letter
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = min(GAME_WIDTH, GAME_HEIGHT) / 25
+        
+        # MODIFIED: Calculate a more reasonable font scale based on screen dimensions
+        # Divide by a larger number to make letters smaller
+        # Use self.game_width/height instead of constants
+        font_scale = min(self.game_width, self.game_height) / 40  # Changed from 25 to 40
+        
+        # For very large screens, cap the font size
+        if font_scale > 20:
+            font_scale = 20
         
         # Get text size to center it properly
         (text_width, text_height), _ = cv2.getTextSize(self.current_letter, font, font_scale, self.letter_thickness)
