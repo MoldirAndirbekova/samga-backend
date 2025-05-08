@@ -17,6 +17,7 @@ from .fruit_slicer import FruitSlicerGameState
 from .snake import SnakeGameState
 from .constructor import ConstructorGameState  # Import ConstructorGameState
 from .rock_paper_scissors import RockPaperScissorsGame
+from .flappy_bird import FlappyBirdGameState
 import jwt
 
 router = APIRouter()
@@ -88,6 +89,7 @@ class GameStartRequest(BaseModel):
 
 class GameResultResponse(BaseModel):
     game_id: str
+    game_name: str  # New field
     difficulty: str
     score: int
     duration_seconds: int
@@ -271,7 +273,6 @@ class GameState:
             metrics["reaction_time"] = 0
 
         return metrics
-
     def save_game_result(self):
         """Save the game result for reporting"""
         if self.start_time:
@@ -283,6 +284,7 @@ class GameState:
             # Create game result object
             result = {
                 "game_id": self.game_id,
+                "game_name": "Ping Pong",  # Add default game name
                 "difficulty": self.difficulty,
                 "score": self.score,
                 "duration_seconds": int(duration),
@@ -290,7 +292,7 @@ class GameState:
                 "right_score": self.right_score,
                 "timestamp": datetime.now().isoformat(),
                 "skills": skill_metrics,
-                "child_id": self.child_id  # Include child_id in game results
+                "child_id": self.child_id
             }
 
             # Add to global results list
@@ -521,6 +523,7 @@ def calculate_bubble_pop_skill_metrics(game):
 
 
 # Override BubblePopGameState save_game_result method
+# For the BubblePopGameState:
 def save_bubble_pop_game_result(self):
     """Save the game result for Bubble Pop with skill metrics"""
     if self.start_time:
@@ -532,14 +535,15 @@ def save_bubble_pop_game_result(self):
         # Create game result object
         result = {
             "game_id": self.game_id,
+            "game_name": "Bubble Pop",  # Add specific game name
             "difficulty": self.difficulty,
             "score": self.score,
             "duration_seconds": int(duration),
-            "left_score": self.score,  # Use score as left_score for compatibility
-            "right_score": self.penalties,  # Use penalties as right_score for reporting
+            "left_score": self.score,
+            "right_score": self.penalties,
             "timestamp": datetime.now().isoformat(),
             "skills": skill_metrics,
-            "child_id": self.child_id  # Include child_id in game results
+            "child_id": self.child_id
         }
 
         # Add to global results list
@@ -740,6 +744,9 @@ async def create_game(request: GameStartRequest, current_user=Depends(get_curren
     elif request.game_type == "rock_paper_scissors":
         print(f"Initializing Rock Paper Scissors game with difficulty: {request.difficulty}")
         active_games[game_id] = RockPaperScissorsGame(game_id, request.difficulty, request.child_id)
+    elif request.game_type == "flappy_bird":
+        print(f"Initializing Flappy Bird game with difficulty: {request.difficulty}")
+        active_games[game_id] = FlappyBirdGameState(game_id, request.difficulty, request.child_id)
     else:
         # Default to PingPong game
         print(f"Initializing PingPong game with difficulty: {request.difficulty}")
@@ -817,6 +824,18 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                                     "type": "pose_tracking_result",
                                     "data": pose_result
                                 })
+                        elif isinstance(game, FlappyBirdGameState):
+                            # Process the image for arm pose detection
+                            pose_result = process_pose_for_flappy_bird(img)
+                            
+                            # Update flappy bird game state with arm positions
+                            game.update_pose(pose_result)
+                            
+                            # Send tracking results back to client
+                            await websocket.send_json({
+                                "type": "pose_tracking_result",
+                                "data": pose_result
+                            })
                         else:
                             # Process the image for hand tracking
                             result = process_image_for_hands(img)
@@ -1050,6 +1069,119 @@ def process_image_for_pose(img):
 
     return result
 
+def process_pose_for_flappy_bird(img):
+    """
+    Process an image to detect arm positions for Flappy Bird game control.
+    Returns arm angles and positions for determining flap actions.
+    """
+    height, width = img.shape[:2]
+    result = {
+        "pose_detected": False,
+        "left_arm_raised": False,
+        "right_arm_raised": False,
+        "left_arm_angle": 0,
+        "right_arm_angle": 0
+    }
+
+    # Initialize MediaPipe Pose solution
+    mp_pose = mp.solutions.pose
+    pose = mp_pose.Pose(
+        static_image_mode=False,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
+    )
+    
+    # Convert image to RGB
+    rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Process the image with Pose
+    pose_results = pose.process(rgb_image)
+    
+    if pose_results.pose_landmarks:
+        result["pose_detected"] = True
+        landmarks = []
+        
+        # Extract landmarks
+        for idx, landmark in enumerate(pose_results.pose_landmarks.landmark):
+            landmarks.append({
+                'x': landmark.x * width,
+                'y': landmark.y * height,
+                'z': landmark.z,
+                'visibility': landmark.visibility
+            })
+        
+        # Calculate arm angles
+        try:
+            # Right arm angle calculation (shoulder-elbow-wrist)
+            right_shoulder = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value]
+            right_elbow = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value]
+            right_wrist = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value]
+            
+            # Left arm angle calculation
+            left_shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value]
+            left_elbow = landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value]
+            left_wrist = landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value]
+            
+            # Calculate angles
+            right_arm_angle = calculate_angle(
+                (right_shoulder['x'], right_shoulder['y']),
+                (right_elbow['x'], right_elbow['y']),
+                (right_wrist['x'], right_wrist['y'])
+            )
+            
+            left_arm_angle = calculate_angle(
+                (left_shoulder['x'], left_shoulder['y']),
+                (left_elbow['x'], left_elbow['y']),
+                (left_wrist['x'], left_wrist['y'])
+            )
+            
+            result["right_arm_angle"] = right_arm_angle
+            result["left_arm_angle"] = left_arm_angle
+            
+            # Check if arms are raised
+            right_arm_raised = (right_arm_angle < 90 and 
+                               right_wrist['y'] < right_shoulder['y'])
+            left_arm_raised = (left_arm_angle < 90 and 
+                              left_wrist['y'] < left_shoulder['y'])
+            
+            result["right_arm_raised"] = right_arm_raised
+            result["left_arm_raised"] = left_arm_raised
+            
+            # Include landmarks for visualization if needed
+            result["landmarks"] = landmarks
+            
+        except Exception as e:
+            print(f"Error calculating arm angles: {e}")
+    
+    return result
+
+def calculate_angle(p1, p2, p3):
+    """
+    Calculate angle between three points (x,y tuples).
+    Used for arm angle calculation.
+    """
+    import math
+    
+    # Calculate vectors from p2 to p1 and p2 to p3
+    v1 = (p1[0] - p2[0], p1[1] - p2[1])
+    v2 = (p3[0] - p2[0], p3[1] - p2[1])
+    
+    # Calculate dot product
+    dot_product = v1[0] * v2[0] + v1[1] * v2[1]
+    
+    # Calculate magnitudes
+    v1_mag = math.sqrt(v1[0]**2 + v1[1]**2)
+    v2_mag = math.sqrt(v2[0]**2 + v2[1]**2)
+    
+    # Calculate angle in degrees
+    try:
+        angle = math.degrees(math.acos(dot_product / (v1_mag * v2_mag)))
+    except:
+        # Handle division by zero or domain error
+        angle = 0
+        
+    return angle
+
 @router.post("/handtracking", response_model=HandTrackingResponse)
 async def track_hands(request: HandTrackingRequest):
     """
@@ -1240,12 +1372,12 @@ async def save_game_report(request: SaveGameReportRequest, current_user = Depend
         # Check if the database is connected
         if not prisma.is_connected():
             await prisma.connect()
-
-        # Determine game type ID
+        # Determine game type ID and name
         game_type_id = "ping-pong"
+        game_name = "Ping Pong"
         if request.game_type == "bubble_pop":
             game_type_id = "bubble-pop"
-
+            game_name = "Bubble Pop"
         # Create the game report in the database
         game_report = await prisma.gamereport.create(
             data={
@@ -1270,6 +1402,7 @@ async def save_game_report(request: SaveGameReportRequest, current_user = Depend
         # Also add to in-memory results for backward compatibility
         result = {
             "game_id": request.game_id,
+            "game_name": game_name,  # Add the game name
             "difficulty": request.difficulty,
             "score": request.score,
             "duration_seconds": request.duration_seconds,
@@ -1323,7 +1456,10 @@ async def get_game_report(child_id: Optional[str] = None, current_user = Depends
         # If reports exist in the database, use them
         if db_game_reports:
             print(f"Found {len(db_game_reports)} game reports in database")
-
+            
+            # Get all games to map game_id to game_name
+            games = await prisma.game.find_many()
+            game_id_to_name = {game.id: game.name for game in games}
             # Convert database results to game report format
             filtered_results = []
             for report in db_game_reports:
@@ -1331,10 +1467,12 @@ async def get_game_report(child_id: Optional[str] = None, current_user = Depends
                 skills = {}
                 for metric in report.skillMetrics:
                     skills[metric.skillName] = metric.value
-
+                # Get game name from mapping or use a default
+                game_name = game_id_to_name.get(report.gameTypeId, "Unknown Game")
                 # Create game result
                 filtered_results.append({
                     "game_id": report.gameId,
+                    "game_name": game_name,  # Include the game_name field
                     "difficulty": report.difficulty,
                     "score": report.score,
                     "duration_seconds": report.durationSeconds,
@@ -1347,12 +1485,34 @@ async def get_game_report(child_id: Optional[str] = None, current_user = Depends
         else:
             # Fall back to in-memory results if database has no data
             print("No game reports found in database, using in-memory data")
-            filtered_results = [r for r in game_results if child_id is None or r.get("child_id") == child_id]
+            # We need to ensure in-memory results also have game_name
+            filtered_results = []
+            for r in game_results:
+                if child_id is None or r.get("child_id") == child_id:
+                    # Make a copy to avoid modifying the original
+                    result = r.copy()
+                    # Add game_name if not present
+                    if "game_name" not in result:
+                        game_type = "Ping Pong"  # Default game name
+                        if "game_type" in result:
+                            game_type = result["game_type"].replace("_", " ").title()
+                        result["game_name"] = game_type
+                    filtered_results.append(result)
     except Exception as e:
         print(f"Error fetching from database, using in-memory data: {str(e)}")
-        # Fall back to in-memory results
-        filtered_results = [r for r in game_results if child_id is None or r.get("child_id") == child_id]
-
+        # Fall back to in-memory results, ensuring game_name is present
+        filtered_results = []
+        for r in game_results:
+            if child_id is None or r.get("child_id") == child_id:
+                # Make a copy to avoid modifying the original
+                result = r.copy()
+                # Add game_name if not present
+                if "game_name" not in result:
+                    game_type = "Ping Pong"  # Default game name
+                    if "game_type" in result:
+                        game_type = result["game_type"].replace("_", " ").title()
+                    result["game_name"] = game_type
+                filtered_results.append(result)
     if not filtered_results:
         return GameReportResponse(
             total_games=0,

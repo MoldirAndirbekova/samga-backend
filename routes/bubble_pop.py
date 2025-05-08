@@ -8,6 +8,7 @@ import cv2
 import random
 import base64
 import math
+import os
 
 # Game constants
 GAME_WIDTH = 800
@@ -15,6 +16,9 @@ GAME_HEIGHT = 600
 BUBBLE_SIZE_MIN = 50
 BUBBLE_SIZE_MAX = 120
 GAME_DURATION = 60  # 60 seconds
+
+# Path to balloon image
+BALLOON_IMAGE_PATH = os.path.join("assets", "images", "balloon.png")
 
 # Difficulty levels determine bubble lifetime and penalties
 DIFFICULTY_LEVELS = {
@@ -77,6 +81,28 @@ class BubblePopGameState:
         # FPS control
         self.fps = 60
         self.frame_time = 1 / self.fps
+        
+        # Load balloon image
+        self.balloon_image = None
+        self.load_balloon_image()
+    
+    def load_balloon_image(self):
+        """Load the balloon PNG image"""
+        try:
+            self.balloon_image = cv2.imread(BALLOON_IMAGE_PATH, cv2.IMREAD_UNCHANGED)
+            if self.balloon_image is None:
+                print(f"Warning: Could not load balloon image from {BALLOON_IMAGE_PATH}")
+            else:
+                print(f"Successfully loaded balloon image from {BALLOON_IMAGE_PATH}")
+                
+                # Check if image has alpha channel, if not add one
+                if self.balloon_image.shape[2] == 3:
+                    # Convert BGR to BGRA
+                    alpha = np.ones((self.balloon_image.shape[0], self.balloon_image.shape[1]), dtype=self.balloon_image.dtype) * 255
+                    self.balloon_image = cv2.merge((self.balloon_image, alpha))
+        except Exception as e:
+            print(f"Error loading balloon image: {e}")
+            self.balloon_image = None
 
     def start_game(self):
         """Start or restart the game"""
@@ -91,6 +117,10 @@ class BubblePopGameState:
         self.time_remaining = GAME_DURATION
         self.bubbles = []
         self.bubble_id_counter = 0
+        
+        # Make sure balloon image is loaded
+        if self.balloon_image is None:
+            self.load_balloon_image()
     
     def update_hands(self, left_hand, right_hand):
         """Update hand positions based on hand tracking data"""
@@ -219,8 +249,9 @@ class BubblePopGameState:
         initial_count = len(self.bubbles)
         new_bubbles = []
         for bubble in self.bubbles:
-            # Keep bubbles that haven't been popped, or recently popped bubbles for visual feedback
-            if not bubble.popped or bubble.age < 20:  # Show popped bubble for 20 frames
+            # For PNG balloons, we'll immediately remove popped bubbles
+            # Only keep bubbles that haven't been popped
+            if not bubble.popped:
                 new_bubbles.append(bubble)
                 bubble.age += 1
         
@@ -292,6 +323,75 @@ class BubblePopGameState:
             if len(game_results) > 100:
                 game_results.pop(0)
     
+    def overlay_balloon_image(self, img, bubble):
+        """Overlay the balloon PNG image on the game frame"""
+        if self.balloon_image is None:
+            # Fallback to drawing a circle if image couldn't be loaded
+            center = (int(bubble.x + bubble.size/2), int(bubble.y + bubble.size/2))
+            radius = int(bubble.size/2)
+            cv2.circle(img, center, radius, (50, 100, 255), -1)
+            return
+        
+        # Calculate the size to display the balloon
+        balloon_width = int(bubble.size)
+        balloon_height = int(bubble.size * 1.2)  # Slightly taller than wide for balloon shape
+        
+        # Resize the balloon image
+        resized_balloon = cv2.resize(self.balloon_image, (balloon_width, balloon_height))
+        
+        # Calculate position to place the balloon
+        x_pos = int(bubble.x)
+        y_pos = int(bubble.y)
+        
+        # Make sure we're within bounds
+        if x_pos + balloon_width > img.shape[1] or y_pos + balloon_height > img.shape[0]:
+            return
+        
+        # Check if resized balloon has an alpha channel
+        if resized_balloon.shape[2] == 4:
+            # Extract alpha channel
+            alpha = resized_balloon[:, :, 3] / 255.0
+            
+            # Calculate remaining lifetime percentage
+            bubble_age = (datetime.now() - bubble.created_at).total_seconds()
+            remaining_pct = max(0, 1 - (bubble_age / bubble.lifetime))
+            
+            # Calculate region for overlay
+            y1, y2 = y_pos, y_pos + balloon_height
+            x1, x2 = x_pos, x_pos + balloon_width
+            
+            # Make sure region is within image boundaries
+            if y1 >= 0 and y2 <= img.shape[0] and x1 >= 0 and x2 <= img.shape[1]:
+                # Get the region of the background
+                bg_region = img[y1:y2, x1:x2]
+                
+                # For each color channel
+                for c in range(3):
+                    # Overlay the balloon onto the image
+                    img[y1:y2, x1:x2, c] = (1 - alpha) * bg_region[:, :, c] + alpha * resized_balloon[:, :, c]
+                
+                # Draw timer indicator (small line above the balloon)
+                if remaining_pct < 1.0:
+                    timer_y = y_pos - 5
+                    timer_width = int(balloon_width * remaining_pct)
+                    
+                    # Color based on remaining time
+                    if remaining_pct < 0.3:
+                        color = (0, 0, 255)  # Red (about to pop)
+                    elif remaining_pct < 0.6:
+                        color = (0, 255, 255)  # Yellow (medium time)
+                    else:
+                        color = (255, 255, 255)  # White (plenty of time)
+                    
+                    cv2.line(img, (x_pos, timer_y), (x_pos + timer_width, timer_y), color, 3)
+        else:
+            # No alpha channel, simple overlay
+            y1, y2 = y_pos, y_pos + balloon_height
+            x1, x2 = x_pos, x_pos + balloon_width
+            
+            if y1 >= 0 and y2 <= img.shape[0] and x1 >= 0 and x2 <= img.shape[1]:
+                img[y1:y2, x1:x2] = resized_balloon[:, :, :3]
+    
     def render_frame(self):
         """Render the current game state to an image"""
         print(f"Rendering frame: active={self.game_active}, score={self.score}, bubbles={len(self.bubbles)}")
@@ -326,60 +426,13 @@ class BubblePopGameState:
         overlay.fill(50)  # Dark overlay
         cv2.addWeighted(overlay, 0.3, img, 0.7, 0, img)
         
-        # Draw bubbles
-        now = datetime.now()
+        # Draw balloons using PNG image
         for bubble in self.bubbles:
-            center = (int(bubble.x + bubble.size/2), int(bubble.y + bubble.size/2))
-            radius = int(bubble.size/2)
-            
-            if bubble.popped:
-                if bubble.popped_by_player:
-                    # Player-popped bubble - green fade out
-                    alpha = max(0, 1 - bubble.age / 20)
-                    cv2.circle(img, center, radius, (100, 255, 100, int(alpha * 128)), -1)
-                else:
-                    # Self-popped bubble - red fade out
-                    alpha = max(0, 1 - bubble.age / 20)
-                    cv2.circle(img, center, radius, (100, 100, 255, int(alpha * 128)), -1)
-            else:
-                # Draw bubble with gradient
-                color1 = (255, 255, 255)  # White center
-                color2 = (100, 200, 255)  # Light blue middle
-                color3 = (50, 100, 255)   # Blue edge
-                
-                # Calculate remaining lifetime percentage
-                bubble_age = (now - bubble.created_at).total_seconds()
-                remaining_pct = max(0, 1 - (bubble_age / bubble.lifetime))
-                
-                # Change color based on remaining time
-                if remaining_pct < 0.3:
-                    # About to pop - use red tint
-                    color2 = (100, 100, 255)
-                    color3 = (50, 50, 255)
-                elif remaining_pct < 0.6:
-                    # Medium time left - use yellow tint
-                    color2 = (100, 255, 255)
-                    color3 = (50, 255, 255)
-                
-                # Draw the bubble in layers
-                cv2.circle(img, center, radius, color3, -1)
-                cv2.circle(img, center, int(radius * 0.8), color2, -1)
-                cv2.circle(img, center, int(radius * 0.4), color1, -1)
-                
-                # Add a highlight spot
-                highlight_center = (
-                    int(center[0] - radius * 0.3), 
-                    int(center[1] - radius * 0.3)
-                )
-                cv2.circle(img, highlight_center, int(radius * 0.2), (255, 255, 255), -1)
-                
-                # Draw timer fill around the bubble
-                arc_end = int(360 * remaining_pct)
-                cv2.ellipse(img, center, (radius + 3, radius + 3), 
-                           0, 0, arc_end, (255, 255, 255), 2)
+            if not bubble.popped:
+                # Only render bubbles that haven't been popped
+                self.overlay_balloon_image(img, bubble)
         
         # Draw hand indicators if detected
-        # Draw hand indicators using palm center
         if self.left_hand or self.right_hand:
             scale_x = GAME_WIDTH / 640
             scale_y = GAME_HEIGHT / 480
