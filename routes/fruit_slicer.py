@@ -19,21 +19,21 @@ GAME_DURATION = 60  # 60 seconds
 # Difficulty levels
 DIFFICULTY_LEVELS = {
     "EASY": {
-        "fruit_lifetime": 6.0,  # seconds
+        "fruit_lifetime": 8.0,  # Increased from 6.0 to 8.0 seconds
         "score_penalty": 1,
-        "spawn_rate": (4.0, 6.0),  # min and max time between spawns
-        "bomb_chance": 0.1  # 10% chance of bombs
+        "spawn_rate": (4.0, 6.0),
+        "bomb_chance": 0.1
     },
     "MEDIUM": {
-        "fruit_lifetime": 4.0,
+        "fruit_lifetime": 6.0,  # Increased from 4.0 to 6.0 seconds
         "score_penalty": 2,
-        "spawn_rate": (2.0, 3.5),
+        "spawn_rate": (3.0, 5.0),  # Slightly increased spawn intervals
         "bomb_chance": 0.3
     },
     "HARD": {
-        "fruit_lifetime": 2.5,
+        "fruit_lifetime": 4.0,  # Increased from 2.5 to 4.0 seconds
         "score_penalty": 3,
-        "spawn_rate": (1.5, 3.0),
+        "spawn_rate": (2.0, 4.0),  # Slightly increased spawn intervals
         "bomb_chance": 0.5
     }
 }
@@ -164,10 +164,11 @@ class FruitSlicerGameState:
             is_bomb=is_bomb
         )
         
+        # MODIFY THESE VALUES:
         # Set velocity to go upward with reduced gravity for slower falls
-        new_fruit.velocity_y = random.uniform(12, 18)  # Higher initial velocity
-        new_fruit.velocity_x = random.uniform(-2, 2)   # Less horizontal movement
-        new_fruit.gravity = 0.15  # Reduced gravity (was 0.3)
+        new_fruit.velocity_y = random.uniform(8, 12)  # REDUCED from 12-18 to 8-12
+        new_fruit.velocity_x = random.uniform(-1.5, 1.5)  # REDUCED from -2,2 to -1.5,1.5
+        new_fruit.gravity = 0.07  # REDUCED from 0.15 to 0.07
         
         self.fruits.append(new_fruit)
         self.fruit_id_counter += 1
@@ -259,7 +260,8 @@ class FruitSlicerGameState:
         """Update positions of all fruits based on physics"""
         for fruit in self.fruits:
             if not fruit.sliced:
-                fruit.update_position(dt)
+                # Slow down the physics by multiplying dt by a factor less than 1
+                fruit.update_position(dt * 0.6)  # Add this multiplier to slow down movement
             else:
                 # If sliced, continue animation but split in two
                 fruit.age += 1
