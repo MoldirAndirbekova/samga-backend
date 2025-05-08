@@ -6,7 +6,7 @@ from datetime import datetime
 
 async def seed_database():
     print("Checking database for existing seed data...")
-    
+
     # Check if categories exist
     motion_category = await prisma.category.find_first(
         where={"name": "Motion Games"}
@@ -14,7 +14,7 @@ async def seed_database():
     cognitive_category = await prisma.category.find_first(
         where={"name": "Cognitive Games"}
     )
-    
+
     # If motion_category doesn't exist, create it
     if not motion_category:
         print("Creating Motion Games category...")
@@ -37,12 +37,12 @@ async def seed_database():
         )
     else:
         print("Cognitive Games category already exists")
-    
+
     # Check if games exist
     ping_pong_game = await prisma.game.find_unique(
         where={"id": "ping-pong"}
     )
-    
+
     bubble_pop_game = await prisma.game.find_unique(
         where={"id": "bubble-pop"}
     )
@@ -59,11 +59,34 @@ async def seed_database():
     snake_game = await prisma.game.find_unique(
         where={"id": "snake"}
     )
+    constructor_game = await prisma.game.find_unique(
+        where={"id": "constructor"}
+    )
+    # Check if Rock Paper Scissors game exists
+    rock_paper_scissors_game = await prisma.game.find_unique(
+        where={"id": "rock-paper-scissors"}
+    )
 
+    # Create Rock Paper Scissors game if it doesn't exist
+    if not rock_paper_scissors_game:
+        print("Creating Rock Paper Scissors game...")
+        await prisma.game.create(
+            data={
+                "id": "rock-paper-scissors",
+                "name": "Rock Paper Scissors",
+                "category": {
+                    "connect": {
+                        "id": motion_category.id  # Connect to Motion Games category
+                    }
+                }
+            }
+        )
+    else:
+        print("Rock Paper Scissors game already exists")
+        
     flappy_bird_game = await prisma.game.find_unique(
         where={"id": "flappy-bird"}
     )
-
     # Create games if they don't exist - using the correct schema structure
     if not ping_pong_game:
         print("Creating Ping Pong game...")
@@ -80,7 +103,7 @@ async def seed_database():
         )
     else:
         print("Ping Pong game already exists")
-    
+
     if not bubble_pop_game:
         print("Creating Bubble Pop game...")
         await prisma.game.create(
@@ -167,6 +190,18 @@ async def seed_database():
     else:
         print("Snake game already exists")
 
+    if not constructor_game:
+        print("Creating Constructor game...")
+        await prisma.game.create(
+            data={
+                "id": "constructor",
+                "name": "Constructor",
+                "category": {
+                    "connect": {
+                        "id": cognitive_category.id  # Using cognitive category for this game
+    else:               
+        print("Constructor game already exists")
+                      
     if not flappy_bird_game:
         print("Creating Flappy bird game")
         await prisma.game.create(
@@ -183,7 +218,9 @@ async def seed_database():
     else:
         print("Flappy Bird game already exists")
 
+
     print("Database seeding complete")
 
+
 if __name__ == "__main__":
-    asyncio.run(seed_database()) 
+    asyncio.run(seed_database())
