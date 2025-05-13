@@ -1,37 +1,41 @@
 #!/bin/sh
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-while ! nc -z postgres 5432; do
-  sleep 0.1
-done
-echo "PostgreSQL is ready!"
+echo "Starting application on Railway..."
 
 # Generate Prisma client
 echo "Generating Prisma client..."
-cd /app
 prisma generate
 
 # Push database schema
 echo "Pushing database schema..."
 prisma db push
 
-# Start the application
+# Start the application with Python
 echo "Starting the application..."
-cd /app
 python -c "
 import asyncio
+import os
 from prisma import Prisma
 from main import app
 import uvicorn
 
 async def main():
+    # Prisma will use DATABASE_URL from environment
     prisma = Prisma()
     await prisma.connect()
-    config = uvicorn.Config(app, host='0.0.0.0', port=8000, reload=True, workers=1, loop='asyncio')
+    print('Connected to database')
+    
+    port = int(os.getenv('PORT', 8000))
+    config = uvicorn.Config(
+        app, 
+        host='0.0.0.0', 
+        port=port, 
+        workers=1, 
+        loop='asyncio'
+    )
     server = uvicorn.Server(config)
     await server.serve()
 
 if __name__ == '__main__':
     asyncio.run(main())
-" 
+"
