@@ -327,6 +327,7 @@ class FlappyBirdGameState:
             
             result = {
                 "game_id": self.game_id,
+                "game_name": "Flappy Bird",
                 "difficulty": self.difficulty,
                 "score": self.score,
                 "duration_seconds": int(duration),

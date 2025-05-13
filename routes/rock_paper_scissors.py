@@ -517,6 +517,7 @@ class RockPaperScissorsGame:
             # Create result object
             game_result = {
                 "game_id": self.game_id,
+                "game_name": "Rock Paper Scissors",
                 "difficulty": self.difficulty,
                 "score": self.score,
                 "computer_score": self.computer_score,

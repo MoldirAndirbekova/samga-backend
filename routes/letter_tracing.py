@@ -227,6 +227,7 @@ class LetterTracingGameState:
             # Create game result object
             result = {
                 "game_id": self.game_id,
+                "game_name": "Letter Tracing",
                 "difficulty": self.difficulty,
                 "score": self.letters_completed,
                 "duration_seconds": int(duration),

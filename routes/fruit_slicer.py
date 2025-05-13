@@ -371,6 +371,7 @@ class FruitSlicerGameState:
             # Create game result object
             result = {
                 "game_id": self.game_id,
+                "game_name": "Fruit Slicer",
                 "difficulty": self.difficulty,
                 "score": self.score,
                 "duration_seconds": int(duration),

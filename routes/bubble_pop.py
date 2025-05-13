@@ -305,6 +305,7 @@ class BubblePopGameState:
             # Create game result object
             result = {
                 "game_id": self.game_id,
+                "game_name": "Balloon Pop",
                 "difficulty": self.difficulty,
                 "score": self.score,
                 "duration_seconds": int(duration),
