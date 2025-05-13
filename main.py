@@ -18,7 +18,8 @@ async def shutdown():
 
 origins = [
     "http://localhost:3000", 
-    "http://127.0.0.1:3000",  
+    "http://127.0.0.1:3000",
+    "https://samga-frontend-production.up.railway.app"
 ]
 
 app.add_middleware(
