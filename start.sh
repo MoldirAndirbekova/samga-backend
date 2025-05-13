@@ -10,9 +10,12 @@ prisma generate
 echo "Pushing database schema..."
 prisma db push
 
-# Start with uvicorn using Railway's PORT
-echo "Starting the application on port ${PORT}..."
+# Use the PORT env var if set, otherwise use 8000 (Railway's expected port)
+PORT_TO_USE=${PORT:-8000}
+echo "Starting application on port ${PORT_TO_USE}..."
+
+# Start the application
 exec uvicorn main:app \
     --host 0.0.0.0 \
-    --port ${PORT} \
+    --port ${PORT_TO_USE} \
     --workers 1
