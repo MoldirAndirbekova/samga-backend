@@ -922,6 +922,21 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                 # Close the connection
                 await websocket.close()
                 return
+            
+            # In the message processing section, add these handlers:
+            elif message["type"] == "pause_game":
+                if hasattr(game, 'pause_game'):
+                    game.pause_game()
+                # Generic pause for games without specific pause method
+                else:
+                    game.game_active = False
+
+            elif message["type"] == "resume_game":
+                if hasattr(game, 'resume_game'):
+                    game.resume_game()
+                # Generic resume for games without specific resume method
+                else:
+                    game.game_active = True
 
             # Update game state
             game.update_game_state()

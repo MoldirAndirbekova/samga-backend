@@ -121,6 +121,34 @@ class SnakeGameState:
     def update_camera_frame(self, frame):
         """Store the current camera frame for AR overlay"""
         self.current_camera_frame = frame
+
+    def pause_game(self):
+        """Pause the game"""
+        print(f"Pausing Snake game id: {self.game_id}")
+        self.game_active = False
+    
+    def resume_game(self):
+        """Resume the game"""
+        print(f"Resuming Snake game id: {self.game_id}")
+        self.game_active = True
+        self.last_update = datetime.now()  # Reset the last update time to prevent time jumps
+    
+    def update_game_state(self):
+        """Update the game state for one frame"""
+        if not self.game_active or self.game_over:
+            return
+        
+        # Calculate delta time
+        now = datetime.now()
+        dt = (now - self.last_update).total_seconds()
+        self.last_update = now
+        
+        # Don't update time when paused
+        if self.game_active:
+            # Update game timer
+            elapsed_seconds = (now - self.start_time).total_seconds()
+            self.time_remaining = max(0, GAME_DURATION - int(elapsed_seconds))
+        
     
     def update_game_state(self):
         """Update the game state for one frame"""
