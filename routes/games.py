@@ -473,7 +473,7 @@ class GameState:
             )
 
         # Convert to base64 for sending over WebSocket
-        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])  # Down from 70
         if success:
             image_base64 = base64.b64encode(buffer).decode('utf-8')
             return f"data:image/jpeg;base64,{image_base64}"
