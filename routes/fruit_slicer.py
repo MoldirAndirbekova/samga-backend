@@ -392,67 +392,35 @@ class FruitSlicerGameState:
                 game_results.pop(0)
     
     def render_frame(self):
-        """Render the current game state to an image"""
+        """Render the current game state to an image - OPTIMIZED VERSION"""
         print(f"Rendering frame: active={self.game_active}, score={self.score}, fruits={len(self.fruits)}")
         
-        # Start with camera frame as background if available
-        if self.current_camera_frame is not None and len(self.current_camera_frame) > 0:
-            try:
-                # Decode and process camera frame
-                if isinstance(self.current_camera_frame, str):
-                    # If we received base64 string
-                    image_data = base64.b64decode(self.current_camera_frame.split(',')[1] if ',' in self.current_camera_frame else self.current_camera_frame)
-                    nparr = np.frombuffer(image_data, np.uint8)
-                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                else:
-                    img = self.current_camera_frame
-                
-                # Resize to game dimensions
-                if img is not None:
-                    img = cv2.resize(img, (GAME_WIDTH, GAME_HEIGHT))
-                else:
-                    # Fallback to gradient background
-                    img = self._create_gradient_background()
-            except Exception as e:
-                print(f"Error processing camera frame: {e}")
-                img = self._create_gradient_background()
-        else:
-            # Fallback to gradient background
-            img = self._create_gradient_background()
+        # CHANGE 1: Skip camera processing - use simple background
+        img = self._create_gradient_background()
         
-        # Apply slight overlay color for game atmosphere
-        overlay = np.zeros((GAME_HEIGHT, GAME_WIDTH, 3), dtype=np.uint8)
-        overlay.fill(20)  # Dark overlay
-        cv2.addWeighted(overlay, 0.4, img, 0.6, 0, img)
+        # CHANGE 2: Remove overlay processing
+        # (Removed the overlay.fill(20) and cv2.addWeighted operations)
         
-        # Draw blade trail
+        # CHANGE 3: Simplified blade trail (reduce points)
         if len(self.blade_trail) > 1:
             scale_x = GAME_WIDTH / 640
             scale_y = GAME_HEIGHT / 480
             
-            for i in range(1, len(self.blade_trail)):
+            # Only draw every 3rd point to reduce operations
+            for i in range(3, len(self.blade_trail), 3):
                 pt1 = (
-                    int(self.blade_trail[i-1]["x"] * scale_x),
-                    int(self.blade_trail[i-1]["y"] * scale_y)
+                    int(self.blade_trail[i-3]["x"] * scale_x),
+                    int(self.blade_trail[i-3]["y"] * scale_y)
                 )
                 pt2 = (
                     int(self.blade_trail[i]["x"] * scale_x),
                     int(self.blade_trail[i]["y"] * scale_y)
                 )
                 
-                # Calculate alpha based on time
-                time_diff = (datetime.now() - self.blade_trail[i]["time"]).total_seconds()
-                alpha = max(0, 1 - time_diff / 0.5)
-                
-                # Draw trail with glow effect
-                thickness = int(5 * alpha)
-                if thickness > 0:
-                    # Yellow-orange trail for nose
-                    cv2.line(img, pt1, pt2, (0, 200, 255), thickness + 4)
-                    # Core
-                    cv2.line(img, pt1, pt2, (0, 255, 255), thickness)
+                # Simple trail without alpha calculations
+                cv2.line(img, pt1, pt2, (0, 255, 255), 3)  # Single line, no glow
         
-        # Draw nose position if detected
+        # CHANGE 4: Simplified nose cursor
         if self.nose_position:
             scale_x = GAME_WIDTH / 640
             scale_y = GAME_HEIGHT / 480
@@ -460,250 +428,93 @@ class FruitSlicerGameState:
             nose_x = int(self.nose_position["x"] * scale_x)
             nose_y = int(self.nose_position["y"] * scale_y)
             
-            # Draw a precise cursor for the nose
-            cursor_radius = 15  # Size of the cursor (same size used for hit detection)
+            # Just a simple circle - no crosshairs
+            cv2.circle(img, (nose_x, nose_y), 15, (0, 255, 255), 3)
             
-            # Draw outer circle
-            cv2.circle(img, (nose_x, nose_y), cursor_radius, (0, 0, 0), 2)  # Black outline
-            # Draw inner filled circle
-            cv2.circle(img, (nose_x, nose_y), cursor_radius - 2, (0, 255, 255), -1)  # Yellow fill
-            
-            # Add crosshairs for precision
-            cv2.line(img, (nose_x - cursor_radius, nose_y), (nose_x + cursor_radius, nose_y), (0, 0, 0), 1)
-            cv2.line(img, (nose_x, nose_y - cursor_radius), (nose_x, nose_y + cursor_radius), (0, 0, 0), 1)
-            
-        # Draw fruits
+        # CHANGE 5: MASSIVELY SIMPLIFIED FRUIT RENDERING
         for fruit in self.fruits:
             center = (int(fruit.x + fruit.size/2), int(fruit.y + fruit.size/2))
             radius = int(fruit.size/2)
             
-            # Create rotation matrix for fruit
-            M = cv2.getRotationMatrix2D(center, fruit.rotation, 1)
-            
             if fruit.sliced:
                 if fruit.sliced_by_player:
-                    # Fruit was sliced - show split effect
+                    # SIMPLIFIED: Just show fading color
+                    alpha = max(0, 1 - fruit.age / 20)
                     if fruit.is_bomb:
-                        # Bomb explosion - red
-                        alpha = max(0, 1 - fruit.age / 20)
-                        
-                        # Draw explosion rings
-                        for r in range(radius, radius*3, radius//2):
-                            cv2.circle(img, center, r, (50, 50, 255, int(alpha * 255)), 5)
-                        
-                        # Add text
-                        cv2.putText(img, "BOOM!", 
-                                  (center[0]-40, center[1]), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, 
-                                  (50, 50, 255, int(alpha * 255)), 2)
+                        # Simple red circle for bomb explosion
+                        cv2.circle(img, center, radius, (0, 0, 255), -1)
+                        cv2.putText(img, "X", (center[0]-10, center[1]+5), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
                     else:
-                        # Normal fruit - show sliced halves
-                        alpha = max(0, 1 - fruit.age / 20)
-                        
-                        # Calculate direction perpendicular to slice
-                        slice_dir_x = 0
-                        slice_dir_y = -1  # Default upward
-                        
-                        # Draw two halves
-                        half1_center = (
-                            int(center[0] + slice_dir_x * radius * 0.7 * fruit.age/10),
-                            int(center[1] + slice_dir_y * radius * 0.7 * fruit.age/10)
-                        )
-                        half2_center = (
-                            int(center[0] - slice_dir_x * radius * 0.7 * fruit.age/10),
-                            int(center[1] - slice_dir_y * radius * 0.7 * fruit.age/10)
-                        )
-                        
-                        # Draw with alpha fade
-                        fruit_color = (50, 255, 50) if not fruit.is_bomb else (50, 50, 255)
-                        
-                        # Draw ellipses for halves
-                        cv2.ellipse(img, half1_center, (radius, radius//2), 
-                                  fruit.rotation, 0, 180, fruit_color, -1)
-                        cv2.ellipse(img, half2_center, (radius, radius//2), 
-                                  fruit.rotation + 180, 0, 180, fruit_color, -1)
-                        
-                        # Add juice drips
-                        for i in range(3):
-                            drip_x = center[0] + random.randint(-radius, radius)
-                            drip_y = center[1] + random.randint(0, fruit.age*2)
-                            drip_length = random.randint(5, 10)
-                            cv2.line(img, (drip_x, drip_y), 
-                                   (drip_x, drip_y + drip_length), 
-                                   fruit_color, 2)
+                        # Simple split - just two smaller circles
+                        offset = fruit.age // 2
+                        cv2.circle(img, (center[0]-offset, center[1]), radius//2, (0, 255, 0), -1)
+                        cv2.circle(img, (center[0]+offset, center[1]), radius//2, (0, 255, 0), -1)
             else:
-                # Draw intact fruit/bomb with gradient
+                # SIMPLIFIED: Just basic colored circles
                 if fruit.is_bomb:
-                    # Bomb
-                    cv2.circle(img, center, radius, (50, 50, 200), -1)
-                    cv2.circle(img, center, radius, (0, 0, 0), 2)
-                    
-                    # Fuse
-                    fuse_top = (center[0], center[1] - radius - 10)
-                    cv2.line(img, (center[0], center[1] - radius), 
-                           fuse_top, (100, 100, 100), 3)
-                    
-                    # Fuse spark
-                    if random.random() > 0.5:
-                        spark_radius = random.randint(2, 5)
-                        spark_color = random.choice([
-                            (0, 0, 255), (0, 255, 255), (255, 255, 0)
-                        ])
-                        cv2.circle(img, fuse_top, spark_radius, spark_color, -1)
-                    
-                    # Bomb pattern
-                    cv2.putText(img, "BOMB", 
-                              (center[0]-30, center[1]+5), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, 
-                              (255, 255, 255), 1)
+                    # Simple bomb - black circle with red outline
+                    cv2.circle(img, center, radius, (0, 0, 0), -1)
+                    cv2.circle(img, center, radius, (0, 0, 255), 3)
+                    cv2.putText(img, "!", (center[0]-5, center[1]+5), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                 else:
-                    # Normal fruit
-                    fruit_type = fruit.id % 5  # 5 different fruit types
+                    # Simple fruits - just colored circles
+                    fruit_type = fruit.id % 4  # Reduced to 4 types
+                    colors = [
+                        (0, 0, 255),    # Red
+                        (0, 165, 255),  # Orange  
+                        (0, 255, 0),    # Green
+                        (255, 255, 0)   # Yellow
+                    ]
+                    cv2.circle(img, center, radius, colors[fruit_type], -1)
                     
-                    if fruit_type == 0:  # Apple
-                        fruit_color = (0, 0, 255)  # Red in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Stem
-                        stem_top = (center[0], center[1] - radius - 5)
-                        cv2.line(img, (center[0], center[1] - radius), 
-                               stem_top, (40, 100, 40), 2)
-                    
-                    elif fruit_type == 1:  # Orange
-                        fruit_color = (0, 165, 255)  # Orange in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Texture circles
-                        for i in range(5):
-                            x = center[0] + int(radius * 0.6 * math.cos(i * math.pi/2.5))
-                            y = center[1] + int(radius * 0.6 * math.sin(i * math.pi/2.5))
-                            cv2.circle(img, (x, y), 3, (0, 140, 220), 1)
-                    
-                    elif fruit_type == 2:  # Watermelon
-                        fruit_color = (30, 180, 30)  # Green in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Stripes
-                        for i in range(0, 360, 30):
-                            rad = i * math.pi / 180
-                            pt1 = (
-                                int(center[0] - radius * math.cos(rad)),
-                                int(center[1] - radius * math.sin(rad))
-                            )
-                            pt2 = (
-                                int(center[0] + radius * math.cos(rad)),
-                                int(center[1] + radius * math.sin(rad))
-                            )
-                            cv2.line(img, pt1, pt2, (30, 120, 30), 1)
-                    
-                    elif fruit_type == 3:  # Banana
-                        fruit_color = (0, 255, 255)  # Yellow in BGR
-                        
-                        # Draw curved banana shape
-                        pts = np.array([
-                            [center[0]-radius, center[1]],
-                            [center[0]-radius//2, center[1]-radius//2],
-                            [center[0]+radius//2, center[1]-radius//2],
-                            [center[0]+radius, center[1]]
-                        ], np.int32)
-                        pts = pts.reshape((-1, 1, 2))
-                        cv2.fillPoly(img, [pts], fruit_color)
-                    
-                    else:  # Pineapple
-                        fruit_color = (0, 200, 255)  # Yellow-orange in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Add texture
-                        for i in range(0, 360, 20):
-                            rad = i * math.pi / 180
-                            x = int(center[0] + (radius-5) * math.cos(rad))
-                            y = int(center[1] + (radius-5) * math.sin(rad))
-                            cv2.circle(img, (x, y), 3, (0, 100, 200), -1)
-                        
-                        # Green top
-                        pts = np.array([
-                            [center[0]-radius//3, center[1]-radius],
-                            [center[0], center[1]-radius-10],
-                            [center[0]+radius//3, center[1]-radius]
-                        ], np.int32)
-                        pts = pts.reshape((-1, 1, 2))
-                        cv2.fillPoly(img, [pts], (30, 180, 30))
-                    
-                    # Add highlight to all fruits
-                    highlight_center = (
-                        int(center[0] - radius * 0.3), 
-                        int(center[1] - radius * 0.3)
-                    )
-                    cv2.circle(img, highlight_center, int(radius * 0.2), 
-                             (255, 255, 255), -1)
+                    # Single white highlight dot
+                    highlight_pos = (center[0] - radius//3, center[1] - radius//3)
+                    cv2.circle(img, highlight_pos, radius//4, (255, 255, 255), -1)
         
-        # Draw semi-transparent HUD overlay
-        hud_overlay = np.zeros((100, GAME_WIDTH, 4), dtype=np.uint8)  # RGBA
-        
-        # Game timer
-        timer_text = f"Time: {self.time_remaining}s"
-        cv2.putText(hud_overlay, timer_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255, 255), 2)
-        
-        # Score
-        score_text = f"Score: {self.score}"
-        cv2.putText(hud_overlay, score_text, (GAME_WIDTH - 200, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255, 255), 2)
-        
-        # Difficulty
-        difficulty_text = f"Difficulty: {self.difficulty}"
-        cv2.putText(hud_overlay, difficulty_text, (GAME_WIDTH // 2 - 80, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255, 255), 2)
+        # CHANGE 6: Simplified HUD - direct text on image
+        cv2.putText(img, f"Time: {self.time_remaining}s", (20, 40), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(img, f"Score: {self.score}", (GAME_WIDTH - 200, 40), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(img, f"Difficulty: {self.difficulty}", (GAME_WIDTH // 2 - 80, 40), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         
         # Combo display
         if self.combo > 1:
-            combo_text = f"Combo: x{self.combo}"
-            cv2.putText(img, combo_text, (GAME_WIDTH // 2 - 60, GAME_HEIGHT - 40), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 200, 0), 2)
-        
-        # Draw HUD with transparency
-        cv2.addWeighted(hud_overlay[:, :, :3], 0.7, img[:100, :], 0.3, 0, img[:100, :])
+            cv2.putText(img, f"Combo: x{self.combo}", (GAME_WIDTH // 2 - 60, GAME_HEIGHT - 40), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 200, 0), 2)
         
         # Penalties display
         if self.penalties > 0:
-            penalties_text = f"Penalties: -{self.penalties}"
-            cv2.putText(img, penalties_text, (20, GAME_HEIGHT - 20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 100), 2)
+            cv2.putText(img, f"Penalties: -{self.penalties}", (20, GAME_HEIGHT - 20), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 100), 2)
         
-        # Game over screen
+        # CHANGE 7: Simplified game over screen
         if self.game_over:
-            overlay = img.copy()
-            cv2.rectangle(overlay, (0, 0), (GAME_WIDTH, GAME_HEIGHT), (0, 0, 0), -1)
+            # Simple black overlay
+            overlay = np.zeros((GAME_HEIGHT, GAME_WIDTH, 3), dtype=np.uint8)
             cv2.addWeighted(overlay, 0.7, img, 0.3, 0, img)
             
-            if self.time_remaining <= 0:
-                cv2.putText(img, "TIME'S UP!", (GAME_WIDTH//2 - 150, GAME_HEIGHT//2 - 70), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
-            else:
-                cv2.putText(img, "GAME OVER", (GAME_WIDTH//2 - 150, GAME_HEIGHT//2 - 70), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
-            
-            cv2.putText(img, f"Final Score: {self.score}", (GAME_WIDTH//2 - 120, GAME_HEIGHT//2), 
+            # Simple text
+            cv2.putText(img, "GAME OVER", (GAME_WIDTH//2 - 150, GAME_HEIGHT//2 - 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
+            cv2.putText(img, f"Score: {self.score}", (GAME_WIDTH//2 - 80, GAME_HEIGHT//2), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                        
-            cv2.putText(img, f"Difficulty: {self.difficulty}", (GAME_WIDTH//2 - 100, GAME_HEIGHT//2 + 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                        
-            cv2.putText(img, f"Max Combo: x{self.max_combo}", (GAME_WIDTH//2 - 100, GAME_HEIGHT//2 + 100), 
+            cv2.putText(img, f"Combo: x{self.max_combo}", (GAME_WIDTH//2 - 80, GAME_HEIGHT//2 + 50), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         
-        # Convert to base64 for sending over WebSocket
-        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        # CHANGE 8: Lower quality JPEG compression for smaller file size
+        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 30])  # Reduced from 70 to 30
         if success:
             image_base64 = base64.b64encode(buffer).decode('utf-8')
             return f"data:image/jpeg;base64,{image_base64}"
         
         return None
-    
+
     def _create_gradient_background(self):
-        """Create a gradient background as fallback"""
+        """OPTIMIZED: Simple solid color background instead of gradient"""
         img = np.zeros((GAME_HEIGHT, GAME_WIDTH, 3), dtype=np.uint8)
-        
-        # Create a black to dark blue gradient background
-        for y in range(GAME_HEIGHT):
-            blue_value = int(100 * (y / GAME_HEIGHT))
-            cv2.line(img, (0, y), (GAME_WIDTH, y), (blue_value, 0, 0), 1)
-        
+        img.fill(20)  # Dark blue-gray background
         return img
