@@ -43,7 +43,6 @@ DIFFICULTY_LEVELS = {
 FRUIT_TYPES = [
     "apple",
     "orange", 
-    "watermelon",
     "banana",
     "pineapple"
 ]
