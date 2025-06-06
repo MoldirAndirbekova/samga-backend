@@ -819,11 +819,11 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                             if pose_result and "nose" in pose_result:
                                 game.update_pose(pose_result["nose"])
 
-                            # Send tracking results back to client
-                            await websocket.send_json({
-                                "type": "pose_tracking_result",
-                                "data": pose_result
-                            })
+                                # Send tracking results back to client
+                                await websocket.send_json({
+                                    "type": "pose_tracking_result",
+                                    "data": pose_result
+                                })
                         elif isinstance(game, FlappyBirdGameState):
                             # Process the image for arm pose detection
                             pose_result = process_pose_for_flappy_bird(img)
@@ -941,55 +941,52 @@ async def game_websocket(websocket: WebSocket, game_id: str):
             # Update game state
             game.update_game_state()
 
-            if isinstance(game, FruitSlicerGameState):
-                game_state_data = game.get_game_state()
-            else:
-                # Render frame and send to client
-                frame = game.render_frame()
+            # Render frame and send to client
+            frame = game.render_frame()
 
-                # Prepare game state data to send
-                # In the WebSocket handler, modify the game_state_data preparation:
-                game_state_data = {
-                    "frame": frame,
-                    "game_active": game.game_active,
-                    "game_over": game.game_over,
-                }
-                if isinstance(game, RockPaperScissorsGame):
-                    game_state_data["current_state"] = game.current_state
-                    game_state_data["computer_score"] = game.computer_score
-                    game_state_data["round_count"] = game.round_count
-                    game_state_data["current_round"] = game.current_round
-                    game_state_data["countdown"] = game.countdown if hasattr(game, 'countdown') else 0
-                    game_state_data["player_move"] = game.player_move if hasattr(game, 'player_move') else None
-                    game_state_data["computer_move"] = game.computer_move if hasattr(game, 'computer_move') else None
-                    game_state_data["round_result"] = game.round_result if hasattr(game, 'round_result') else None
+            # Prepare game state data to send
+            # In the WebSocket handler, modify the game_state_data preparation:
+            game_state_data = {
+                "frame": frame,
+                "game_active": game.game_active,
+                "game_over": game.game_over,
+            }
+            if isinstance(game, RockPaperScissorsGame):
+                game_state_data["current_state"] = game.current_state
+                game_state_data["computer_score"] = game.computer_score
+                game_state_data["round_count"] = game.round_count
+                game_state_data["current_round"] = game.current_round
+                game_state_data["countdown"] = game.countdown if hasattr(game, 'countdown') else 0
+                game_state_data["player_move"] = game.player_move if hasattr(game, 'player_move') else None
+                game_state_data["computer_move"] = game.computer_move if hasattr(game, 'computer_move') else None
+                game_state_data["round_result"] = game.round_result if hasattr(game, 'round_result') else None
 
-                # Add score and time info, handling different game types
-                if hasattr(game, 'score'):
-                    game_state_data["score"] = game.score
+            # Add score and time info, handling different game types
+            if hasattr(game, 'score'):
+                game_state_data["score"] = game.score
 
-                if hasattr(game, 'time_remaining'):
-                    game_state_data["time_remaining"] = game.time_remaining
+            if hasattr(game, 'time_remaining'):
+                game_state_data["time_remaining"] = game.time_remaining
 
-                # Add combo information for Fruit Slicer
-                if hasattr(game, 'combo'):
-                    game_state_data["combo"] = game.combo
-                    game_state_data["max_combo"] = game.max_combo
+            # Add combo information for Fruit Slicer
+            if hasattr(game, 'combo'):
+                game_state_data["combo"] = game.combo
+                game_state_data["max_combo"] = game.max_combo
 
-                # Add fruits data for Fruit Slicer
-                if hasattr(game, 'fruits'):
-                    # Send basic fruit data (position, size, state)
-                    game_state_data["fruits"] = [
-                        {
-                            "id": fruit.id,
-                            "x": fruit.x,
-                            "y": fruit.y,
-                            "size": fruit.size,
-                            "sliced": fruit.sliced,
-                            "is_bomb": getattr(fruit, 'is_bomb', False)
-                        }
-                        for fruit in game.fruits
-                    ]
+            # Add fruits data for Fruit Slicer
+            if hasattr(game, 'fruits'):
+                # Send basic fruit data (position, size, state)
+                game_state_data["fruits"] = [
+                    {
+                        "id": fruit.id,
+                        "x": fruit.x,
+                        "y": fruit.y,
+                        "size": fruit.size,
+                        "sliced": fruit.sliced,
+                        "is_bomb": getattr(fruit, 'is_bomb', False)
+                    }
+                    for fruit in game.fruits
+                ]
 
             # Send game state
             await websocket.send_json({
