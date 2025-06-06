@@ -86,14 +86,14 @@ class Fruit:
         """Convert fruit to dictionary for frontend"""
         return {
             "id": self.id,
-            "x": self.x,
-            "y": self.y,
-            "size": self.size,
-            "rotation": self.rotation,
+            "x": float(self.x),
+            "y": float(self.y),
+            "size": float(self.size),
+            "rotation": float(self.rotation),
             "sliced": self.sliced,
             "sliced_by_player": self.sliced_by_player,
             "is_bomb": self.is_bomb,
-            "fruit_type": self.fruit_type,
+            "fruit_type": str(self.fruit_type),  # Ensure it's a string
             "age": self.age
         }
 
