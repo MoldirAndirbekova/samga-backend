@@ -752,6 +752,12 @@ async def create_game(request: GameStartRequest, current_user=Depends(get_curren
         "game_type": request.game_type,
         "child_id": request.child_id
     }
+
+
+# This is the updated section for games.py WebSocket handler
+# Replace the existing WebSocket handler section with this:
+
+@router.websocket("/game/{game_id}/ws")
 @router.websocket("/game/{game_id}/ws")
 async def game_websocket(websocket: WebSocket, game_id: str):
     """WebSocket endpoint for game rendering and control"""
@@ -768,12 +774,6 @@ async def game_websocket(websocket: WebSocket, game_id: str):
         if email is None:
             await websocket.close(code=1008, reason="Invalid token")
             return
-
-        # We could load the user here if needed
-        # user = await prisma.user.find_unique(where={"email": email})
-        # if user is None:
-        #    await websocket.close(code=1008, reason="User not found")
-        #    return
     except Exception as e:
         await websocket.close(code=1008, reason="Invalid authentication")
         return
@@ -786,6 +786,7 @@ async def game_websocket(websocket: WebSocket, game_id: str):
         return
 
     game = active_games[game_id]
+    print(f"🔌 WebSocket connected for game {game_id} (Type: {type(game).__name__})")
 
     try:
         while True:
@@ -793,13 +794,29 @@ async def game_websocket(websocket: WebSocket, game_id: str):
             message = json.loads(data)
 
             if message["type"] == "start_game":
-                game.start_game()
+                # Handle start game with optional level parameter
+                level = None
+                if "data" in message and "level" in message["data"]:
+                    level = message["data"]["level"]
+                    print(f"🎮 Starting game with level: {level}")
+                else:
+                    print(f"🎮 Starting game with no level specified")
+
+                # For Constructor game, pass the level parameter
+                if isinstance(game, ConstructorGameState):
+                    print(f"🏗️ Constructor game - starting level {level}")
+                    game.start_game(level=level)
+                else:
+                    print(f"🎲 Other game type - starting without level")
+                    game.start_game()
 
             elif message["type"] == "hand_tracking_image":
                 # Process the image for hand tracking AND update camera frame for AR
                 try:
                     # Decode base64 image
-                    image_data = base64.b64decode(message["data"]["image"].split(',')[1] if ',' in message["data"]["image"] else message["data"]["image"])
+                    image_data = base64.b64decode(
+                        message["data"]["image"].split(',')[1] if ',' in message["data"]["image"] else message["data"][
+                            "image"])
                     nparr = np.frombuffer(image_data, np.uint8)
                     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
@@ -838,7 +855,7 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                         if hasattr(game, 'update_camera_frame'):
                             game.update_camera_frame(img)
 
-                        # Add to the WebSocket handler for hand tracking
+                        # Handle Rock Paper Scissors
                         if isinstance(game, RockPaperScissorsGame):
                             # Process the image with the detector
                             hands, img = game.find_hands(img)
@@ -850,28 +867,17 @@ async def game_websocket(websocket: WebSocket, game_id: str):
                             # Update camera frame for AR overlay
                             game.update_camera_frame(img)
 
-                        # Add to the game state data preparation section
-                        if isinstance(game, RockPaperScissorsGame):
-                            game_state_data["current_state"] = game.current_state
-                            game_state_data["computer_score"] = game.computer_score
-                            game_state_data["round_count"] = game.round_count
-                            game_state_data["current_round"] = game.current_round
-                            game_state_data["countdown"] = game.countdown if hasattr(game, 'countdown') else 0
-                            game_state_data["player_move"] = game.player_move if hasattr(game, 'player_move') else None
-                            game_state_data["computer_move"] = game.computer_move if hasattr(game,
-                                                                                             'computer_move') else None
-                            game_state_data["round_result"] = game.round_result if hasattr(game,
-                                                                                           'round_result') else None
-                        # Send tracking results back to client
-                        await websocket.send_json({
-                            "type": "hand_tracking_result",
-                            "data": {
-                                "left": result.left,
-                                "right": result.right
-                            }
-                        })
+                        # Send tracking results back to client (for non-pose games)
+                        if not isinstance(game, FruitSlicerGameState):
+                            await websocket.send_json({
+                                "type": "hand_tracking_result",
+                                "data": {
+                                    "left": result.left,
+                                    "right": result.right
+                                }
+                            })
                 except Exception as e:
-                    print(f"Error processing hand tracking image: {str(e)}")
+                    print(f"❌ Error processing hand tracking image: {str(e)}")
 
             elif message["type"] == "update_score" and hasattr(game, 'score'):
                 # For games like Bubble Pop that need explicit score updates
@@ -880,16 +886,16 @@ async def game_websocket(websocket: WebSocket, game_id: str):
 
             elif message["type"] == "close_game":
                 # Clean disconnect requested by client
-                print(f"Client requested clean disconnect for game {game_id}")
+                print(f"🚪 Client requested clean disconnect for game {game_id}")
                 if game_id in active_games:
                     # Save game result if game is active
-                    if game.game_active and not game.game_over:
+                    if hasattr(game, 'game_active') and game.game_active and not getattr(game, 'game_over', True):
                         game.game_over = True
                         game.game_active = False
                         try:
                             game.save_game_result()
                         except Exception as e:
-                            print(f"Error saving game result on clean disconnect: {str(e)}")
+                            print(f"❌ Error saving game result on clean disconnect: {str(e)}")
 
                     # Remove from active games
                     del active_games[game_id]
@@ -911,21 +917,33 @@ async def game_websocket(websocket: WebSocket, game_id: str):
             frame = game.render_frame()
 
             # Prepare game state data to send
-            # In the WebSocket handler, modify the game_state_data preparation:
             game_state_data = {
                 "frame": frame,
-                "game_active": game.game_active,
-                "game_over": game.game_over,
+                "game_active": getattr(game, 'game_active', False),
+                "game_over": getattr(game, 'game_over', False),
             }
+
+            # Add Constructor-specific data
+            if isinstance(game, ConstructorGameState):
+                game_state_data.update({
+                    "selected_level": game.selected_level,
+                    "showing_preview": game.showing_preview,
+                    "pieces_placed": game.pieces_placed,
+                    "total_pieces": game.total_pieces,
+                })
+
+            # Add Rock Paper Scissors specific data
             if isinstance(game, RockPaperScissorsGame):
-                game_state_data["current_state"] = game.current_state
-                game_state_data["computer_score"] = game.computer_score
-                game_state_data["round_count"] = game.round_count
-                game_state_data["current_round"] = game.current_round
-                game_state_data["countdown"] = game.countdown if hasattr(game, 'countdown') else 0
-                game_state_data["player_move"] = game.player_move if hasattr(game, 'player_move') else None
-                game_state_data["computer_move"] = game.computer_move if hasattr(game, 'computer_move') else None
-                game_state_data["round_result"] = game.round_result if hasattr(game, 'round_result') else None
+                game_state_data.update({
+                    "current_state": game.current_state,
+                    "computer_score": game.computer_score,
+                    "round_count": game.round_count,
+                    "current_round": game.current_round,
+                    "countdown": getattr(game, 'countdown', 0),
+                    "player_move": getattr(game, 'player_move', None),
+                    "computer_move": getattr(game, 'computer_move', None),
+                    "round_result": getattr(game, 'round_result', None)
+                })
 
             # Add score and time info, handling different game types
             if hasattr(game, 'score'):
@@ -963,20 +981,20 @@ async def game_websocket(websocket: WebSocket, game_id: str):
             await asyncio.sleep(game.frame_time)
 
     except WebSocketDisconnect:
-        print(f"Client disconnected from game {game_id}")
+        print(f"🔌 Client disconnected from game {game_id}")
         if game_id in active_games:
             # Save game result if game was active
-            if game.game_active and not game.game_over:
+            if hasattr(game, 'game_active') and game.game_active and not getattr(game, 'game_over', True):
                 game.game_over = True
                 game.game_active = False
                 try:
                     game.save_game_result()
                 except Exception as e:
-                    print(f"Error saving game result on disconnect: {str(e)}")
+                    print(f"❌ Error saving game result on disconnect: {str(e)}")
 
             del active_games[game_id]
     except Exception as e:
-        print(f"Error in game WebSocket: {str(e)}")
+        print(f"❌ Error in game WebSocket: {str(e)}")
         if game_id in active_games:
             del active_games[game_id]
 
