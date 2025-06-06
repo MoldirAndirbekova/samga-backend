@@ -8,6 +8,7 @@ import cv2
 import random
 import base64
 import math
+import asyncio
 
 # Game constants
 GAME_WIDTH = 800
@@ -38,6 +39,15 @@ DIFFICULTY_LEVELS = {
     }
 }
 
+# Fruit types for PNG mapping
+FRUIT_TYPES = [
+    "apple",
+    "orange", 
+    "watermelon",
+    "banana",
+    "pineapple"
+]
+
 class Fruit:
     def __init__(self, id, x, y, size, created_at, lifetime, is_bomb=False):
         self.id = id
@@ -55,6 +65,8 @@ class Fruit:
         self.gravity = 0.3
         self.rotation = 0
         self.rotation_speed = random.uniform(-5, 5)
+        # Assign fruit type for PNG mapping
+        self.fruit_type = FRUIT_TYPES[id % len(FRUIT_TYPES)] if not is_bomb else "bomb"
         
     def update_position(self, dt):
         # Apply gravity (negative to pull DOWN)
@@ -69,6 +81,21 @@ class Fruit:
         
         # Keep rotation between 0-360
         self.rotation %= 360
+
+    def to_dict(self):
+        """Convert fruit to dictionary for frontend"""
+        return {
+            "id": self.id,
+            "x": self.x,
+            "y": self.y,
+            "size": self.size,
+            "rotation": self.rotation,
+            "sliced": self.sliced,
+            "sliced_by_player": self.sliced_by_player,
+            "is_bomb": self.is_bomb,
+            "fruit_type": self.fruit_type,
+            "age": self.age
+        }
 
 class FruitSlicerGameState:
     def __init__(self, game_id, difficulty="MEDIUM", child_id=None):
@@ -390,9 +417,50 @@ class FruitSlicerGameState:
             # Keep only the last 100 results to avoid memory issues
             if len(game_results) > 100:
                 game_results.pop(0)
+
+            # Save to database using Prisma
+            asyncio.create_task(self._persist_to_database(result, skill_metrics))
+
+    async def _persist_to_database(self, result, skill_metrics):
+        """Persist game result to database using Prisma"""
+        try:
+            from database import prisma
+            
+            # Check if the database is connected
+            if not prisma.is_connected():
+                await prisma.connect()
+
+            # Use fruit-slicer game type ID
+            game_type_id = "fruit-slicer"
+
+            # Create the game report
+            game_report = await prisma.gamereport.create(
+                data={
+                    "gameId": result["game_id"],
+                    "gameTypeId": game_type_id,
+                    "childId": result["child_id"],
+                    "difficulty": result["difficulty"],
+                    "score": result["score"],
+                    "leftScore": result["left_score"],
+                    "rightScore": result["right_score"],
+                    "durationSeconds": result["duration_seconds"],
+                    "skillMetrics": {
+                        "create": [
+                            {"skillName": skill, "value": value}
+                            for skill, value in skill_metrics.items()
+                        ]
+                    }
+                },
+                include={"skillMetrics": True}
+            )
+
+            print(f"Saved fruit slicer game report to database with ID: {game_report.id}")
+
+        except Exception as e:
+            print(f"Error saving fruit slicer game report to database: {str(e)}")
     
     def render_frame(self):
-        """Render the current game state to an image"""
+        """Render minimal game frame - just camera + UI, fruits handled by frontend"""
         print(f"Rendering frame: active={self.game_active}, score={self.score}, fruits={len(self.fruits)}")
         
         # Start with camera frame as background if available
@@ -471,171 +539,6 @@ class FruitSlicerGameState:
             # Add crosshairs for precision
             cv2.line(img, (nose_x - cursor_radius, nose_y), (nose_x + cursor_radius, nose_y), (0, 0, 0), 1)
             cv2.line(img, (nose_x, nose_y - cursor_radius), (nose_x, nose_y + cursor_radius), (0, 0, 0), 1)
-            
-        # Draw fruits
-        for fruit in self.fruits:
-            center = (int(fruit.x + fruit.size/2), int(fruit.y + fruit.size/2))
-            radius = int(fruit.size/2)
-            
-            # Create rotation matrix for fruit
-            M = cv2.getRotationMatrix2D(center, fruit.rotation, 1)
-            
-            if fruit.sliced:
-                if fruit.sliced_by_player:
-                    # Fruit was sliced - show split effect
-                    if fruit.is_bomb:
-                        # Bomb explosion - red
-                        alpha = max(0, 1 - fruit.age / 20)
-                        
-                        # Draw explosion rings
-                        for r in range(radius, radius*3, radius//2):
-                            cv2.circle(img, center, r, (50, 50, 255, int(alpha * 255)), 5)
-                        
-                        # Add text
-                        cv2.putText(img, "BOOM!", 
-                                  (center[0]-40, center[1]), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, 
-                                  (50, 50, 255, int(alpha * 255)), 2)
-                    else:
-                        # Normal fruit - show sliced halves
-                        alpha = max(0, 1 - fruit.age / 20)
-                        
-                        # Calculate direction perpendicular to slice
-                        slice_dir_x = 0
-                        slice_dir_y = -1  # Default upward
-                        
-                        # Draw two halves
-                        half1_center = (
-                            int(center[0] + slice_dir_x * radius * 0.7 * fruit.age/10),
-                            int(center[1] + slice_dir_y * radius * 0.7 * fruit.age/10)
-                        )
-                        half2_center = (
-                            int(center[0] - slice_dir_x * radius * 0.7 * fruit.age/10),
-                            int(center[1] - slice_dir_y * radius * 0.7 * fruit.age/10)
-                        )
-                        
-                        # Draw with alpha fade
-                        fruit_color = (50, 255, 50) if not fruit.is_bomb else (50, 50, 255)
-                        
-                        # Draw ellipses for halves
-                        cv2.ellipse(img, half1_center, (radius, radius//2), 
-                                  fruit.rotation, 0, 180, fruit_color, -1)
-                        cv2.ellipse(img, half2_center, (radius, radius//2), 
-                                  fruit.rotation + 180, 0, 180, fruit_color, -1)
-                        
-                        # Add juice drips
-                        for i in range(3):
-                            drip_x = center[0] + random.randint(-radius, radius)
-                            drip_y = center[1] + random.randint(0, fruit.age*2)
-                            drip_length = random.randint(5, 10)
-                            cv2.line(img, (drip_x, drip_y), 
-                                   (drip_x, drip_y + drip_length), 
-                                   fruit_color, 2)
-            else:
-                # Draw intact fruit/bomb with gradient
-                if fruit.is_bomb:
-                    # Bomb
-                    cv2.circle(img, center, radius, (50, 50, 200), -1)
-                    cv2.circle(img, center, radius, (0, 0, 0), 2)
-                    
-                    # Fuse
-                    fuse_top = (center[0], center[1] - radius - 10)
-                    cv2.line(img, (center[0], center[1] - radius), 
-                           fuse_top, (100, 100, 100), 3)
-                    
-                    # Fuse spark
-                    if random.random() > 0.5:
-                        spark_radius = random.randint(2, 5)
-                        spark_color = random.choice([
-                            (0, 0, 255), (0, 255, 255), (255, 255, 0)
-                        ])
-                        cv2.circle(img, fuse_top, spark_radius, spark_color, -1)
-                    
-                    # Bomb pattern
-                    cv2.putText(img, "BOMB", 
-                              (center[0]-30, center[1]+5), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, 
-                              (255, 255, 255), 1)
-                else:
-                    # Normal fruit
-                    fruit_type = fruit.id % 5  # 5 different fruit types
-                    
-                    if fruit_type == 0:  # Apple
-                        fruit_color = (0, 0, 255)  # Red in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Stem
-                        stem_top = (center[0], center[1] - radius - 5)
-                        cv2.line(img, (center[0], center[1] - radius), 
-                               stem_top, (40, 100, 40), 2)
-                    
-                    elif fruit_type == 1:  # Orange
-                        fruit_color = (0, 165, 255)  # Orange in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Texture circles
-                        for i in range(5):
-                            x = center[0] + int(radius * 0.6 * math.cos(i * math.pi/2.5))
-                            y = center[1] + int(radius * 0.6 * math.sin(i * math.pi/2.5))
-                            cv2.circle(img, (x, y), 3, (0, 140, 220), 1)
-                    
-                    elif fruit_type == 2:  # Watermelon
-                        fruit_color = (30, 180, 30)  # Green in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Stripes
-                        for i in range(0, 360, 30):
-                            rad = i * math.pi / 180
-                            pt1 = (
-                                int(center[0] - radius * math.cos(rad)),
-                                int(center[1] - radius * math.sin(rad))
-                            )
-                            pt2 = (
-                                int(center[0] + radius * math.cos(rad)),
-                                int(center[1] + radius * math.sin(rad))
-                            )
-                            cv2.line(img, pt1, pt2, (30, 120, 30), 1)
-                    
-                    elif fruit_type == 3:  # Banana
-                        fruit_color = (0, 255, 255)  # Yellow in BGR
-                        
-                        # Draw curved banana shape
-                        pts = np.array([
-                            [center[0]-radius, center[1]],
-                            [center[0]-radius//2, center[1]-radius//2],
-                            [center[0]+radius//2, center[1]-radius//2],
-                            [center[0]+radius, center[1]]
-                        ], np.int32)
-                        pts = pts.reshape((-1, 1, 2))
-                        cv2.fillPoly(img, [pts], fruit_color)
-                    
-                    else:  # Pineapple
-                        fruit_color = (0, 200, 255)  # Yellow-orange in BGR
-                        cv2.circle(img, center, radius, fruit_color, -1)
-                        
-                        # Add texture
-                        for i in range(0, 360, 20):
-                            rad = i * math.pi / 180
-                            x = int(center[0] + (radius-5) * math.cos(rad))
-                            y = int(center[1] + (radius-5) * math.sin(rad))
-                            cv2.circle(img, (x, y), 3, (0, 100, 200), -1)
-                        
-                        # Green top
-                        pts = np.array([
-                            [center[0]-radius//3, center[1]-radius],
-                            [center[0], center[1]-radius-10],
-                            [center[0]+radius//3, center[1]-radius]
-                        ], np.int32)
-                        pts = pts.reshape((-1, 1, 2))
-                        cv2.fillPoly(img, [pts], (30, 180, 30))
-                    
-                    # Add highlight to all fruits
-                    highlight_center = (
-                        int(center[0] - radius * 0.3), 
-                        int(center[1] - radius * 0.3)
-                    )
-                    cv2.circle(img, highlight_center, int(radius * 0.2), 
-                             (255, 255, 255), -1)
         
         # Draw semi-transparent HUD overlay
         hud_overlay = np.zeros((100, GAME_WIDTH, 4), dtype=np.uint8)  # RGBA
@@ -690,7 +593,7 @@ class FruitSlicerGameState:
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         
         # Convert to base64 for sending over WebSocket
-        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])  # Increased quality slightly
         if success:
             image_base64 = base64.b64encode(buffer).decode('utf-8')
             return f"data:image/jpeg;base64,{image_base64}"
