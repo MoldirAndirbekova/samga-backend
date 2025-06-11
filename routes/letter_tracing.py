@@ -39,6 +39,10 @@ class LetterTracingGameState:
         self.start_time = None
         self.last_update = None
         
+        # Pause tracking
+        self.pause_start_time = None
+        self.total_pause_time = 0
+        
         # Words for each letter
         self.letter_words = {
             'A': 'Apple', 'B': 'Ball', 'C': 'Cat', 'D': 'Dog', 'E': 'Elephant',
@@ -91,7 +95,28 @@ class LetterTracingGameState:
         self.drawing_points = []
         self.fill_progress = 0
         self.show_congrats = False
+        self.pause_start_time = None
+        self.total_pause_time = 0
         self.create_letter_template()
+    
+    def pause_game(self):
+        """Pause the game"""
+        print(f"Pausing Letter Tracing game id: {self.game_id}")
+        if self.game_active and not self.game_over:
+            self.game_active = False
+            self.pause_start_time = datetime.now()
+    
+    def resume_game(self):
+        """Resume the game"""
+        print(f"Resuming Letter Tracing game id: {self.game_id}")
+        if not self.game_active and not self.game_over and self.pause_start_time:
+            self.game_active = True
+            # Track total pause time
+            pause_duration = (datetime.now() - self.pause_start_time).total_seconds()
+            self.total_pause_time += pause_duration
+            self.pause_start_time = None
+            # Reset the last update time to prevent time jumps
+            self.last_update = datetime.now()
     
     def update_hand(self, hand_data):
         """Update hand position"""
@@ -167,7 +192,7 @@ class LetterTracingGameState:
                 self.drawing_points.append((finger_x, finger_y))
                 self.update_fill_progress()
         
-        # Check for congratulations timeout
+        # Check for congratulations timeout (only if not paused)
         if self.show_congrats and time.time() - self.congrats_time > 3:
             self.next_letter()
     
@@ -219,7 +244,8 @@ class LetterTracingGameState:
     def save_game_result(self):
         """Save the game result"""
         if self.start_time:
-            duration = (datetime.now() - self.start_time).total_seconds()
+            # Calculate duration excluding pause time
+            duration = (datetime.now() - self.start_time).total_seconds() - self.total_pause_time
             
             # Calculate skill metrics
             skills = self.calculate_skill_metrics()
