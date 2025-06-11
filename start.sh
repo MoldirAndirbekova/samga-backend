@@ -1,37 +1,21 @@
-#!/bin/sh
+#!/bin/bash
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-while ! nc -z postgres 5432; do
-  sleep 0.1
+# Wait for database
+while ! nc -z db 5432; do
+  sleep 1
 done
-echo "PostgreSQL is ready!"
 
-# Generate Prisma client
-echo "Generating Prisma client..."
-cd /app
+# Generate Prisma client and push schema
 prisma generate
-
-# Push database schema
-echo "Pushing database schema..."
 prisma db push
 
-# Start the application
-echo "Starting the application..."
-cd /app
-python -c "
-import asyncio
-from prisma import Prisma
-from main import app
-import uvicorn
+# Start with hot reload (change this line based on your framework)
+# For FastAPI:
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-async def main():
-    prisma = Prisma()
-    await prisma.connect()
-    config = uvicorn.Config(app, host='0.0.0.0', port=8000, reload=True, workers=1, loop='asyncio')
-    server = uvicorn.Server(config)
-    await server.serve()
+# For Flask:
+# export FLASK_ENV=development
+# flask run --host 0.0.0.0 --port 8000
 
-if __name__ == '__main__':
-    asyncio.run(main())
-" 
+# For Django:
+# python manage.py runserver 0.0.0.0:8000

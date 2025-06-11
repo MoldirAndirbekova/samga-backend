@@ -5,9 +5,36 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b1ff7671-6f0c-4b83-b791-9aafc89a3a12" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/car/car1.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/car/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/car/car2.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/car/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/car/car3.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/car/3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/car/car4.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/car/4.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle1.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle2.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle3.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle4.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/4.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle5.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/5.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle6.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/6.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle7.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/7.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle8.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/8.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/castle/castle9.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/castle/9.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/flower/flower1.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/flower/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/flower/flower2.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/flower/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/flower/flower3.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/flower/3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/flower/flower4.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/flower/4.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/home/home1.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/home/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/home/home2.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/home/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/home/home3.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/home/3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/home/home4.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/home/4.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/mushroom/mushroom1.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/mushroom/mushroom2.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_assets/constructor/mushroom/mushroom3.png" beforeDir="false" afterPath="$PROJECT_DIR$/game_assets/constructor/mushroom/3.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/routes/constructor.py" beforeDir="false" afterPath="$PROJECT_DIR$/routes/constructor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/routes/games.py" beforeDir="false" afterPath="$PROJECT_DIR$/routes/games.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/start.sh" beforeDir="false" afterPath="$PROJECT_DIR$/start.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,15 +57,15 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "my-local-branch",
-    "last_opened_file_path": "C:/Users/Admin/Downloads/samga-backend/game_assets/constructor",
-    "settings.editor.selected.configurable": "preferences.lookFeel"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;my-local-branch&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Admin/Downloads/samga-backend/game_assets/constructor&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Admin\Downloads\samga-backend\game_assets\constructor" />
