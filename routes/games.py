@@ -133,6 +133,10 @@ class GameState:
         self.start_time = None
         self.last_update = None
 
+        # Pause tracking
+        self.pause_start_time = None
+        self.total_pause_time = 0
+
         # Hand tracking
         self.left_hand = None
         self.right_hand = None
@@ -152,6 +156,27 @@ class GameState:
         self.ball = {"x": GAME_WIDTH / 2, "y": GAME_HEIGHT / 2, "dx": INITIAL_BALL_SPEED * self.speed_multiplier,
                      "dy": INITIAL_BALL_SPEED * self.speed_multiplier}
         self.current_speed = INITIAL_BALL_SPEED * self.speed_multiplier
+        self.pause_start_time = None
+        self.total_pause_time = 0
+
+    def pause_game(self):
+        """Pause the game"""
+        print(f"Pausing Ping Pong game id: {self.game_id}")
+        if self.game_active and not self.game_over:
+            self.game_active = False
+            self.pause_start_time = datetime.now()
+
+    def resume_game(self):
+        """Resume the game"""
+        print(f"Resuming Ping Pong game id: {self.game_id}")
+        if not self.game_active and not self.game_over and self.pause_start_time:
+            self.game_active = True
+            # Track total pause time
+            pause_duration = (datetime.now() - self.pause_start_time).total_seconds()
+            self.total_pause_time += pause_duration
+            self.pause_start_time = None
+            # Reset the last update time to prevent time jumps
+            self.last_update = datetime.now()
 
     def update_hands(self, left_hand, right_hand):
         """Update paddle positions based on hand tracking data"""
@@ -273,10 +298,12 @@ class GameState:
             metrics["reaction_time"] = 0
 
         return metrics
+    
     def save_game_result(self):
         """Save the game result for reporting"""
         if self.start_time:
-            duration = (datetime.now() - self.start_time).total_seconds()
+            # Calculate duration excluding pause time
+            duration = (datetime.now() - self.start_time).total_seconds() - self.total_pause_time
 
             # Calculate skill metrics
             skill_metrics = self.calculate_skill_metrics()
