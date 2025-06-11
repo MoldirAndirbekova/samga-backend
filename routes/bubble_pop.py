@@ -71,6 +71,10 @@ class BubblePopGameState:
         self.last_bubble_spawn = datetime.now()
         self.penalties = 0  # Track total penalties
         
+        # Pause tracking
+        self.pause_start_time = None
+        self.total_pause_time = 0
+        
         # Hand tracking
         self.left_hand = None
         self.right_hand = None
@@ -117,10 +121,33 @@ class BubblePopGameState:
         self.time_remaining = GAME_DURATION
         self.bubbles = []
         self.bubble_id_counter = 0
+        self.pause_start_time = None
+        self.total_pause_time = 0
         
         # Make sure balloon image is loaded
         if self.balloon_image is None:
             self.load_balloon_image()
+    
+    def pause_game(self):
+        """Pause the game"""
+        print(f"Pausing Bubble Pop game id: {self.game_id}")
+        if self.game_active and not self.game_over:
+            self.game_active = False
+            self.pause_start_time = datetime.now()
+    
+    def resume_game(self):
+        """Resume the game"""
+        print(f"Resuming Bubble Pop game id: {self.game_id}")
+        if not self.game_active and not self.game_over and self.pause_start_time:
+            self.game_active = True
+            # Track total pause time
+            pause_duration = (datetime.now() - self.pause_start_time).total_seconds()
+            self.total_pause_time += pause_duration
+            self.pause_start_time = None
+            # Reset the last update time to prevent time jumps
+            self.last_update = datetime.now()
+            # Also reset bubble spawn time to prevent immediate spawning
+            self.last_bubble_spawn = datetime.now()
     
     def update_hands(self, left_hand, right_hand):
         """Update hand positions based on hand tracking data"""
@@ -269,8 +296,8 @@ class BubblePopGameState:
         dt = (now - self.last_update).total_seconds()
         self.last_update = now
         
-        # Update game timer
-        elapsed_seconds = (now - self.start_time).total_seconds()
+        # Update game timer (excluding pause time)
+        elapsed_seconds = (now - self.start_time).total_seconds() - self.total_pause_time
         self.time_remaining = max(0, GAME_DURATION - int(elapsed_seconds))
         
         # Check if game is over
@@ -300,7 +327,7 @@ class BubblePopGameState:
     def save_game_result(self):
         """Save the game result for reporting"""
         if self.start_time:
-            duration = (datetime.now() - self.start_time).total_seconds()
+            duration = (datetime.now() - self.start_time).total_seconds() - self.total_pause_time
             
             # Create game result object
             result = {

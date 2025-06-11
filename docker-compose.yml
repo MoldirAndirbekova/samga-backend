@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   api:
     build: .
@@ -8,8 +7,15 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-children_games_db}
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - ENVIRONMENT=${ENVIRONMENT:-development}  # Add this for development mode
     ports:
       - "8000:8000"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      # Exclude node_modules and other unnecessary directories
+      - /app/__pycache__
+      - /app/.pytest_cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,4 +40,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data: 
+  postgres_data:
