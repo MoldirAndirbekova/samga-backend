@@ -5,6 +5,7 @@ import numpy as np
 import time
 import base64
 import asyncio
+import random
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import uuid
@@ -30,14 +31,20 @@ class LetterTracingGameState:
         self.letter_thickness = self.difficulty_settings[difficulty]["thickness"]
         self.completion_threshold = self.difficulty_settings[difficulty]["completion_threshold"]
         
-        # Game state
+        # Game state - Modified for 5 random letters
+        self.all_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        self.game_letters = []  # Will contain 5 random letters
         self.current_letter = 'A'
-        self.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         self.current_letter_index = 0
+        self.max_letters = 5  # Changed from 26 to 5
         self.game_active = False
         self.game_over = False
         self.start_time = None
         self.last_update = None
+        
+        # Pause tracking
+        self.pause_start_time = None
+        self.total_pause_time = 0
         
         # Words for each letter
         self.letter_words = {
@@ -65,11 +72,19 @@ class LetterTracingGameState:
         # Create initial letter template
         self.letter_template = None
         self.letter_mask = None
-        self.create_letter_template()
         
         # FPS control
         self.fps = 30
         self.frame_time = 1 / self.fps
+        
+        # Generate random letters for this game session
+        self.generate_random_letters()
+        self.create_letter_template()
+    
+    def generate_random_letters(self):
+        """Generate 5 random letters for this game session"""
+        self.game_letters = random.sample(list(self.all_letters), self.max_letters)
+        print(f"Generated random letters for this game: {self.game_letters}")
     
     def start_game(self, screen_width=None, screen_height=None):
         """Start or restart the game with dynamic dimensions"""
@@ -86,12 +101,37 @@ class LetterTracingGameState:
         self.start_time = datetime.now()
         self.last_update = datetime.now()
         self.current_letter_index = 0
-        self.current_letter = self.letters[0]
+        
+        # Generate new random letters for each game
+        self.generate_random_letters()
+        self.current_letter = self.game_letters[0]
+        
         self.letters_completed = 0
         self.drawing_points = []
         self.fill_progress = 0
         self.show_congrats = False
+        self.pause_start_time = None
+        self.total_pause_time = 0
         self.create_letter_template()
+    
+    def pause_game(self):
+        """Pause the game"""
+        print(f"Pausing Letter Tracing game id: {self.game_id}")
+        if self.game_active and not self.game_over:
+            self.game_active = False
+            self.pause_start_time = datetime.now()
+    
+    def resume_game(self):
+        """Resume the game"""
+        print(f"Resuming Letter Tracing game id: {self.game_id}")
+        if not self.game_active and not self.game_over and self.pause_start_time:
+            self.game_active = True
+            # Track total pause time
+            pause_duration = (datetime.now() - self.pause_start_time).total_seconds()
+            self.total_pause_time += pause_duration
+            self.pause_start_time = None
+            # Reset the last update time to prevent time jumps
+            self.last_update = datetime.now()
     
     def update_hand(self, hand_data):
         """Update hand position"""
@@ -115,10 +155,8 @@ class LetterTracingGameState:
         # Draw the letter
         font = cv2.FONT_HERSHEY_SIMPLEX
         
-        # MODIFIED: Calculate a more reasonable font scale based on screen dimensions
-        # Divide by a larger number to make letters smaller
-        # Use self.game_width/height instead of constants
-        font_scale = min(self.game_width, self.game_height) / 40  # Changed from 25 to 40
+        # Calculate a more reasonable font scale based on screen dimensions
+        font_scale = min(self.game_width, self.game_height) / 40
         
         # For very large screens, cap the font size
         if font_scale > 20:
@@ -167,7 +205,7 @@ class LetterTracingGameState:
                 self.drawing_points.append((finger_x, finger_y))
                 self.update_fill_progress()
         
-        # Check for congratulations timeout
+        # Check for congratulations timeout (only if not paused)
         if self.show_congrats and time.time() - self.congrats_time > 3:
             self.next_letter()
     
@@ -199,8 +237,17 @@ class LetterTracingGameState:
     
     def next_letter(self):
         """Move to the next letter"""
-        self.current_letter_index = (self.current_letter_index + 1) % len(self.letters)
-        self.current_letter = self.letters[self.current_letter_index]
+        self.current_letter_index += 1
+        
+        # Check if all 5 letters are completed
+        if self.current_letter_index >= self.max_letters:
+            self.game_over = True
+            self.game_active = False
+            self.save_game_result()
+            return
+        
+        # Move to next random letter
+        self.current_letter = self.game_letters[self.current_letter_index]
         
         # Reset drawing state
         self.drawing_points = []
@@ -209,17 +256,12 @@ class LetterTracingGameState:
         
         # Create new template
         self.create_letter_template()
-        
-        # Check if game is complete
-        if self.current_letter_index == 0 and self.letters_completed > 0:
-            self.game_over = True
-            self.game_active = False
-            self.save_game_result()
     
     def save_game_result(self):
         """Save the game result"""
         if self.start_time:
-            duration = (datetime.now() - self.start_time).total_seconds()
+            # Calculate duration excluding pause time
+            duration = (datetime.now() - self.start_time).total_seconds() - self.total_pause_time
             
             # Calculate skill metrics
             skills = self.calculate_skill_metrics()
@@ -232,7 +274,7 @@ class LetterTracingGameState:
                 "score": self.letters_completed,
                 "duration_seconds": int(duration),
                 "left_score": self.letters_completed,
-                "right_score": len(self.letters) - self.letters_completed,
+                "right_score": self.max_letters - self.letters_completed,
                 "timestamp": datetime.now().isoformat(),
                 "skills": skills,
                 "child_id": self.child_id
@@ -257,14 +299,14 @@ class LetterTracingGameState:
         metrics["hand_eye_coordination"] = self.fill_progress * 100
         
         # Focus: Based on completion rate
-        completion_rate = self.letters_completed / len(self.letters)
+        completion_rate = self.letters_completed / self.max_letters
         metrics["focus"] = min(100, completion_rate * 100)
         
         # Fine motor skills: Based on drawing precision
         metrics["fine_motor_skills"] = min(100, (self.fill_progress * 0.8 + completion_rate * 0.2) * 100)
         
         # Perseverance: Based on number of letters attempted
-        metrics["perseverance"] = min(100, (self.current_letter_index / len(self.letters)) * 100)
+        metrics["perseverance"] = min(100, (self.current_letter_index / self.max_letters) * 100)
         
         return metrics
     
@@ -340,49 +382,62 @@ class LetterTracingGameState:
             points = np.array(self.drawing_points, dtype=np.int32)
             cv2.polylines(img, [points], False, (0, 0, 255), self.letter_thickness)
         
-        # Draw hand indicator
+        # Draw hand indicator - ONLY CIRCLE, NO LINE
         if self.current_hand and "index_finger_tip" in self.current_hand:
-                # Use index finger tip position
-                finger_x = int(self.current_hand["index_finger_tip"]["x"] * GAME_WIDTH / 640)
-                finger_y = int(self.current_hand["index_finger_tip"]["y"] * GAME_HEIGHT / 480)
-                
-                # Ensure coordinates are within bounds
-                finger_x = max(0, min(finger_x, GAME_WIDTH - 1))
-                finger_y = max(0, min(finger_y, GAME_HEIGHT - 1))
-                
-                # Draw index finger indicator with smaller size
-                cv2.circle(img, (finger_x, finger_y), 15, (0, 255, 0), -1)  # Smaller circle for finger
-                cv2.circle(img, (finger_x, finger_y), 15, (255, 255, 255), 2)
-                cv2.circle(img, (finger_x, finger_y), 10, (0, 200, 0), -1)  # Inner circle for finger tip
-                
-                # Optionally draw the finger landmark trace for visual feedback
-                if "landmarks" in self.current_hand:
-                    # Draw line from wrist to index finger tip
-                    wrist = self.current_hand["landmarks"][0]
-                    if hasattr(wrist, '__getitem__'):
-                        wrist_x = int(wrist["x"] * GAME_WIDTH / 640)
-                        wrist_y = int(wrist["y"] * GAME_HEIGHT / 480)
-                        cv2.line(img, (wrist_x, wrist_y), (finger_x, finger_y), (0, 255, 0, 128), 2)
+            # Use index finger tip position
+            finger_x = int(self.current_hand["index_finger_tip"]["x"] * GAME_WIDTH / 640)
+            finger_y = int(self.current_hand["index_finger_tip"]["y"] * GAME_HEIGHT / 480)
+            
+            # Ensure coordinates are within bounds
+            finger_x = max(0, min(finger_x, GAME_WIDTH - 1))
+            finger_y = max(0, min(finger_y, GAME_HEIGHT - 1))
+            
+            # Draw ONLY the finger indicator circles (NO LINE)
+            cv2.circle(img, (finger_x, finger_y), 15, (0, 255, 0), -1)  # Outer circle
+            cv2.circle(img, (finger_x, finger_y), 15, (255, 255, 255), 2)  # White border
+            cv2.circle(img, (finger_x, finger_y), 10, (0, 200, 0), -1)  # Inner circle
         
-        # Draw UI elements
-        cv2.putText(img, "Trace the letter with your finger", (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(img, f"Progress: {int(self.fill_progress * 100)}%", (10, 60),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(img, f"Letters completed: {self.letters_completed}/{len(self.letters)}", (10, 90),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        # Draw UI elements - fixed positioning in upper left corner
+        # Use fixed font scale that works well on all screen sizes
+        ui_font_scale = 0.4  # Fixed scale for consistency
+        ui_thickness = 2
+        
+        # Fixed positioning in upper left corner with adequate margins
+        margin_x = 15  # Fixed left margin
+        margin_y = 105  # Fixed top margin
+        line_spacing = 35  # Fixed line spacing
+        
+        # Add semi-transparent background for better text visibility
+        overlay_bg = img.copy()
+        cv2.rectangle(overlay_bg, (0, 0), (450, 120), (0, 0, 0), -1)
+        cv2.addWeighted(overlay_bg, 0.6, img, 0.4, 0, img)
+        
+        # Instructions
+        cv2.putText(img, "Trace the letter with your finger", (margin_x, margin_y),
+                   cv2.FONT_HERSHEY_SIMPLEX, ui_font_scale, (255, 255, 255), ui_thickness)
+        
+        # Progress
+        cv2.putText(img, f"Progress: {int(self.fill_progress * 100)}%", (margin_x, margin_y + line_spacing),
+                   cv2.FONT_HERSHEY_SIMPLEX, ui_font_scale, (255, 255, 255), ui_thickness)
+        
+        # Letters completed
+        cv2.putText(img, f"Letters completed: {self.letters_completed}/{self.max_letters}", (margin_x, margin_y + 2 * line_spacing),
+                   cv2.FONT_HERSHEY_SIMPLEX, ui_font_scale, (255, 255, 255), ui_thickness)
         
         # Show congratulations message
         if self.show_congrats:
             congrats_text = f"Good job! {self.letter_words[self.current_letter]} starts with {self.current_letter}!"
-            text_size = cv2.getTextSize(congrats_text, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+            congrats_font_scale = min(GAME_WIDTH, GAME_HEIGHT) / 800
+            congrats_font_scale = max(0.7, min(congrats_font_scale, 1.5))
+            
+            text_size = cv2.getTextSize(congrats_text, cv2.FONT_HERSHEY_SIMPLEX, congrats_font_scale, 2)[0]
             text_x = (GAME_WIDTH - text_size[0]) // 2
-            text_y = GAME_HEIGHT - 50
+            text_y = GAME_HEIGHT - int(GAME_HEIGHT * 0.1)  # 10% from bottom
             
             cv2.putText(img, congrats_text, (text_x, text_y),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4)
+                       cv2.FONT_HERSHEY_SIMPLEX, congrats_font_scale, (0, 0, 0), 4)
             cv2.putText(img, congrats_text, (text_x, text_y),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                       cv2.FONT_HERSHEY_SIMPLEX, congrats_font_scale, (0, 255, 0), 2)
         
         # Game over screen
         if self.game_over:
@@ -390,11 +445,20 @@ class LetterTracingGameState:
             cv2.rectangle(overlay, (0, 0), (GAME_WIDTH, GAME_HEIGHT), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.7, img, 0.3, 0, img)
             
-            cv2.putText(img, "GAME COMPLETE!", (GAME_WIDTH//2 - 150, GAME_HEIGHT//2 - 70),
-                       cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
+            # Responsive game over text
+            game_over_font_scale = min(GAME_WIDTH, GAME_HEIGHT) / 400
+            game_over_font_scale = max(1.0, min(game_over_font_scale, 3.0))
             
-            cv2.putText(img, f"Letters completed: {self.letters_completed}/{len(self.letters)}",
-                       (GAME_WIDTH//2 - 150, GAME_HEIGHT//2), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(img, "GAME COMPLETE!", (GAME_WIDTH//2 - int(150 * game_over_font_scale/2), GAME_HEIGHT//2 - 70),
+                       cv2.FONT_HERSHEY_SIMPLEX, game_over_font_scale, (255, 255, 255), 3)
+            
+            completion_text = f"Letters completed: {self.letters_completed}/{self.max_letters}"
+            completion_font_scale = game_over_font_scale * 0.6
+            text_size = cv2.getTextSize(completion_text, cv2.FONT_HERSHEY_SIMPLEX, completion_font_scale, 2)[0]
+            text_x = (GAME_WIDTH - text_size[0]) // 2
+            
+            cv2.putText(img, completion_text, (text_x, GAME_HEIGHT//2),
+                       cv2.FONT_HERSHEY_SIMPLEX, completion_font_scale, (255, 255, 255), 2)
         
         # Convert to base64
         success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
