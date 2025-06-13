@@ -16,7 +16,7 @@ GAME_HEIGHT = 600
 INITIAL_SNAKE_LENGTH = 150
 SNAKE_GROWTH = 50
 SNAKE_THICKNESS = 20
-FOOD_SIZE = 50
+FOOD_SIZE = 80
 GAME_DURATION = 120  # 2 minutes
 
 DIFFICULTY_LEVELS = {
@@ -86,8 +86,8 @@ class SnakeGameState:
                 food_image = cv2.imread(food_path, cv2.IMREAD_UNCHANGED)
                 
                 if food_image is not None:
-                    # Resize to desired size
-                    food_image = cv2.resize(food_image, (FOOD_SIZE, FOOD_SIZE))
+                    # Resize to desired size with better interpolation
+                    food_image = cv2.resize(food_image, (FOOD_SIZE, FOOD_SIZE), interpolation=cv2.INTER_LANCZOS4)
                     self.food_images[i] = food_image
                     print(f"Food image {i}.png loaded successfully: {food_image.shape}")
                 else:
@@ -380,7 +380,7 @@ class SnakeGameState:
                     img = self.current_camera_frame
                 
                 if img is not None:
-                    img = cv2.resize(img, (GAME_WIDTH, GAME_HEIGHT))
+                    img = cv2.resize(img, (GAME_WIDTH, GAME_HEIGHT), interpolation=cv2.INTER_LANCZOS4)
                 else:
                     img = self._create_background()
             except Exception as e:
@@ -433,15 +433,17 @@ class SnakeGameState:
                         bgr_crop = bgr[img_y1:img_y2, img_x1:img_x2]
                         alpha_crop = alpha[img_y1:img_y2, img_x1:img_x2]
                         
-                        # Create mask
-                        mask = alpha_crop.astype(float) / 255.0
-                        mask_3channel = np.dstack((mask, mask, mask))
+                        # Create mask with better precision
+                        mask = alpha_crop.astype(np.float64) / 255.0
+                        mask_3channel = np.stack([mask, mask, mask], axis=2)
                         
                         # Get the region of interest from the main image
-                        roi = img[y1:y2, x1:x2]
+                        roi = img[y1:y2, x1:x2].astype(np.float64)
+                        bgr_crop_float = bgr_crop.astype(np.float64)
                         
-                        # Blend the images
-                        blended = (bgr_crop * mask_3channel + roi * (1 - mask_3channel)).astype(np.uint8)
+                        # Blend the images with higher precision
+                        blended = (bgr_crop_float * mask_3channel + roi * (1 - mask_3channel))
+                        blended = np.clip(blended, 0, 255).astype(np.uint8)
                         
                         # Put the blended image back
                         img[y1:y2, x1:x2] = blended
@@ -476,24 +478,10 @@ class SnakeGameState:
         # Difficulty
         cv2.putText(img, f"Difficulty: {self.difficulty}", (GAME_WIDTH // 2 - 80, 40), 
                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
         
-        # Game over screen
-        if self.game_over:
-            overlay = img.copy()
-            cv2.rectangle(overlay, (0, 0), (GAME_WIDTH, GAME_HEIGHT), (0, 0, 0), -1)
-            cv2.addWeighted(overlay, 0.7, img, 0.3, 0, img)
-            
-            cv2.putText(img, "GAME OVER", (GAME_WIDTH//2 - 150, GAME_HEIGHT//2 - 70), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
-            
-            cv2.putText(img, f"Final Score: {self.score}", (GAME_WIDTH//2 - 120, GAME_HEIGHT//2), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            
-            cv2.putText(img, f"Difficulty: {self.difficulty}", (GAME_WIDTH//2 - 100, GAME_HEIGHT//2 + 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        
-        # Convert to base64
-        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        # Convert to base64 with higher quality
+        success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 95])
         if success:
             image_base64 = base64.b64encode(buffer).decode('utf-8')
             return f"data:image/jpeg;base64,{image_base64}"

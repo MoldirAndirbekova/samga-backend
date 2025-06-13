@@ -407,14 +407,7 @@ class LetterTracingGameState:
         margin_y = 105  # Fixed top margin
         line_spacing = 35  # Fixed line spacing
         
-        # Add semi-transparent background for better text visibility
-        overlay_bg = img.copy()
-        cv2.rectangle(overlay_bg, (0, 0), (450, 120), (0, 0, 0), -1)
-        cv2.addWeighted(overlay_bg, 0.6, img, 0.4, 0, img)
         
-        # Instructions
-        cv2.putText(img, "Trace the letter with your finger", (margin_x, margin_y),
-                   cv2.FONT_HERSHEY_SIMPLEX, ui_font_scale, (255, 255, 255), ui_thickness)
         
         # Progress
         cv2.putText(img, f"Progress: {int(self.fill_progress * 100)}%", (margin_x, margin_y + line_spacing),
@@ -439,26 +432,7 @@ class LetterTracingGameState:
             cv2.putText(img, congrats_text, (text_x, text_y),
                        cv2.FONT_HERSHEY_SIMPLEX, congrats_font_scale, (0, 255, 0), 2)
         
-        # Game over screen
-        if self.game_over:
-            overlay = img.copy()
-            cv2.rectangle(overlay, (0, 0), (GAME_WIDTH, GAME_HEIGHT), (0, 0, 0), -1)
-            cv2.addWeighted(overlay, 0.7, img, 0.3, 0, img)
-            
-            # Responsive game over text
-            game_over_font_scale = min(GAME_WIDTH, GAME_HEIGHT) / 400
-            game_over_font_scale = max(1.0, min(game_over_font_scale, 3.0))
-            
-            cv2.putText(img, "GAME COMPLETE!", (GAME_WIDTH//2 - int(150 * game_over_font_scale/2), GAME_HEIGHT//2 - 70),
-                       cv2.FONT_HERSHEY_SIMPLEX, game_over_font_scale, (255, 255, 255), 3)
-            
-            completion_text = f"Letters completed: {self.letters_completed}/{self.max_letters}"
-            completion_font_scale = game_over_font_scale * 0.6
-            text_size = cv2.getTextSize(completion_text, cv2.FONT_HERSHEY_SIMPLEX, completion_font_scale, 2)[0]
-            text_x = (GAME_WIDTH - text_size[0]) // 2
-            
-            cv2.putText(img, completion_text, (text_x, GAME_HEIGHT//2),
-                       cv2.FONT_HERSHEY_SIMPLEX, completion_font_scale, (255, 255, 255), 2)
+       
         
         # Convert to base64
         success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
