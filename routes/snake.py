@@ -64,39 +64,68 @@ class SnakeGameState:
         self.fps = 60
         self.frame_time = 1 / self.fps
 
-        self.food_image = None
-        try:
-            # Since we know the exact path in Docker
-            food_path = '/app/static/images/donut.png'
-            
-            print(f"Attempting to load donut image from: {food_path}")
-            print(f"File exists: {os.path.exists(food_path)}")
-            
-            self.food_image = cv2.imread(food_path, cv2.IMREAD_UNCHANGED)
-            
-            if self.food_image is not None:
-                # Resize to desired size
-                self.food_image = cv2.resize(self.food_image, (FOOD_SIZE, FOOD_SIZE))
-                print(f"Donut image loaded successfully: {self.food_image.shape}")
-            else:
-                print(f"OpenCV failed to load image from {food_path}")
-                # Additional debug info
-                print(f"File size: {os.path.getsize(food_path) if os.path.exists(food_path) else 'N/A'}")
-                
-        except Exception as e:
-            print(f"Error loading donut image: {e}")
-            import traceback
-            traceback.print_exc()
+        # Load multiple food images
+        self.food_images = {}
+        self.current_food_image = None
+        self.load_food_images()
         
         # Initialize food
         self.random_food_location()
     
+    def load_food_images(self):
+        """Load all food images (1.png through 12.png)"""
+        print("Loading food images...")
+        
+        for i in range(1, 13):  # 1.png through 12.png
+            try:
+                food_path = f'/app/static/images/{i}.png'
+                
+                print(f"Attempting to load food image from: {food_path}")
+                print(f"File exists: {os.path.exists(food_path)}")
+                
+                food_image = cv2.imread(food_path, cv2.IMREAD_UNCHANGED)
+                
+                if food_image is not None:
+                    # Resize to desired size
+                    food_image = cv2.resize(food_image, (FOOD_SIZE, FOOD_SIZE))
+                    self.food_images[i] = food_image
+                    print(f"Food image {i}.png loaded successfully: {food_image.shape}")
+                else:
+                    print(f"OpenCV failed to load image from {food_path}")
+                    # Additional debug info
+                    if os.path.exists(food_path):
+                        print(f"File size: {os.path.getsize(food_path)}")
+                    
+            except Exception as e:
+                print(f"Error loading food image {i}.png: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        print(f"Successfully loaded {len(self.food_images)} food images")
+        
+        # If no images loaded, create a fallback
+        if not self.food_images:
+            print("No food images loaded, will use fallback circles")
+    
+    def select_random_food_image(self):
+        """Select a random food image from the loaded images"""
+        if self.food_images:
+            # Randomly select one of the loaded food images
+            image_key = random.choice(list(self.food_images.keys()))
+            self.current_food_image = self.food_images[image_key]
+            print(f"Selected food image: {image_key}.png")
+        else:
+            self.current_food_image = None
+            print("No food images available, using fallback")
+    
     def random_food_location(self):
-        """Generate random location for food"""
+        """Generate random location for food and select random food image"""
         self.food_point = (
             random.randint(100, GAME_WIDTH - 100),
             random.randint(100, GAME_HEIGHT - 100)
         )
+        # Select a new random food image each time food is placed
+        self.select_random_food_image()
     
     def start_game(self):
         """Start or restart the game"""
@@ -214,7 +243,7 @@ class SnakeGameState:
                 rx, ry = self.food_point
                 if (rx - FOOD_SIZE // 2 < cx < rx + FOOD_SIZE // 2 and
                     ry - FOOD_SIZE // 2 < cy < ry + FOOD_SIZE // 2):
-                    self.random_food_location()
+                    self.random_food_location()  # This will also select a new random food image
                     self.allowed_length += SNAKE_GROWTH
                     score_multiplier = DIFFICULTY_LEVELS[self.difficulty]["score_multiplier"]
                     self.score += int(10 * score_multiplier)
@@ -379,14 +408,14 @@ class SnakeGameState:
         if self.food_point:
             fx, fy = self.food_point
             
-            if self.food_image is not None and len(self.food_image.shape) > 0:
-                # Use the donut image
+            if self.current_food_image is not None and len(self.current_food_image.shape) > 0:
+                # Use the randomly selected food image
                 try:
                     # Check if image has alpha channel
-                    if self.food_image.shape[2] == 4:
+                    if self.current_food_image.shape[2] == 4:
                         # Separate alpha channel
-                        bgr = self.food_image[:, :, :3]
-                        alpha = self.food_image[:, :, 3]
+                        bgr = self.current_food_image[:, :, :3]
+                        alpha = self.current_food_image[:, :, 3]
                         
                         # Calculate position for overlay
                         x1 = max(0, fx - FOOD_SIZE // 2)
@@ -423,9 +452,9 @@ class SnakeGameState:
                         x2 = min(GAME_WIDTH, x1 + FOOD_SIZE)
                         y2 = min(GAME_HEIGHT, y1 + FOOD_SIZE)
                         
-                        img[y1:y2, x1:x2] = self.food_image[0:y2-y1, 0:x2-x1]
+                        img[y1:y2, x1:x2] = self.current_food_image[0:y2-y1, 0:x2-x1]
                 except Exception as e:
-                    print(f"Error drawing donut image: {e}")
+                    print(f"Error drawing food image: {e}")
                     # Fallback to drawing circles if image fails
                     cv2.circle(img, (fx, fy), FOOD_SIZE // 2, (0, 0, 255), cv2.FILLED)
                     cv2.circle(img, (fx, fy), FOOD_SIZE // 2 - 5, (255, 0, 0), cv2.FILLED)
