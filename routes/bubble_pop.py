@@ -25,7 +25,18 @@ BALLOON_IMAGE_PATHS = [
     os.path.join("static", "images", "baloon-green.png"),
     os.path.join("static", "images", "baloon-purple.png"),
     os.path.join("static", "images", "baloon-pink.png"),
-     os.path.join("static", "images", "baloon-orange.png"),
+    os.path.join("static", "images", "baloon-orange.png"),
+]
+
+# Paths to popped/changed balloon images
+BALLOON_CHANGED_IMAGE_PATHS = [
+    os.path.join("static", "images", "yellow-changed.png"),
+    os.path.join("static", "images", "red-changed.png"),
+    os.path.join("static", "images", "blue-changed.png"),
+    os.path.join("static", "images", "green-changed.png"),
+    os.path.join("static", "images", "purple-changed.png"),
+    os.path.join("static", "images", "pink-changed.png"),
+    os.path.join("static", "images", "orange-changed.png"),
 ]
 
 # Fallback balloon colors if PNG images aren't available
@@ -72,7 +83,7 @@ class Bubble:
         self.lifetime = lifetime  # How long the bubble lives before self-popping
         self.color = random.choice(BALLOON_COLORS)  # Fallback color if no PNG
         self.balloon_image_index = random.randint(0, max(0, len(BALLOON_IMAGE_PATHS) - 1))  # Random balloon image
-        self.pop_animation_frame = 0  # For pop animation
+        self.pop_start_time = None  # When the balloon was popped (for timing the changed image display)
         self.bob_offset = random.uniform(0, 2 * math.pi)  # For floating animation
 
 class BubblePopGameState:
@@ -115,13 +126,15 @@ class BubblePopGameState:
         
         # Load balloon images
         self.balloon_images = []
+        self.balloon_changed_images = []
         self.load_balloon_images()
     
     def load_balloon_images(self):
-        """Load balloon PNG images"""
+        """Load balloon PNG images and their changed versions"""
         print("Loading balloon images...")
         print(f"Looking for {len(BALLOON_IMAGE_PATHS)} balloon files:")
         
+        # Load normal balloon images
         for i, path in enumerate(BALLOON_IMAGE_PATHS):
             print(f"  {i+1}. {path}")
             try:
@@ -139,13 +152,45 @@ class BubblePopGameState:
                     self.balloon_images.append(balloon_img)
                 else:
                     print(f"    ❌ Could not load (file exists but cv2.imread failed)")
+                    self.balloon_images.append(None)
             except Exception as e:
                 print(f"    ❌ Error loading: {e}")
+                self.balloon_images.append(None)
         
-        if not self.balloon_images:
+        # Load changed balloon images
+        print(f"Looking for {len(BALLOON_CHANGED_IMAGE_PATHS)} changed balloon files:")
+        for i, path in enumerate(BALLOON_CHANGED_IMAGE_PATHS):
+            print(f"  {i+1}. {path}")
+            try:
+                changed_img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+                if changed_img is not None:
+                    print(f"    ✅ Successfully loaded! Shape: {changed_img.shape}")
+                    
+                    # Check if image has alpha channel, if not add one
+                    if len(changed_img.shape) == 3 and changed_img.shape[2] == 3:
+                        # Convert BGR to BGRA
+                        alpha = np.ones((changed_img.shape[0], changed_img.shape[1]), dtype=changed_img.dtype) * 255
+                        changed_img = cv2.merge((changed_img, alpha))
+                        print(f"    Added alpha channel, new shape: {changed_img.shape}")
+                    
+                    self.balloon_changed_images.append(changed_img)
+                else:
+                    print(f"    ❌ Could not load (file exists but cv2.imread failed)")
+                    self.balloon_changed_images.append(None)
+            except Exception as e:
+                print(f"    ❌ Error loading: {e}")
+                self.balloon_changed_images.append(None)
+        
+        if not self.balloon_images or all(img is None for img in self.balloon_images):
             print("❌ No balloon PNG images loaded - will use programmatic balloon generation")
         else:
-            print(f"✅ Successfully loaded {len(self.balloon_images)} balloon images")
+            print(f"✅ Successfully loaded {len([img for img in self.balloon_images if img is not None])} balloon images")
+        
+        if not self.balloon_changed_images or all(img is None for img in self.balloon_changed_images):
+            print("❌ No changed balloon PNG images loaded - will use programmatic pop effects")
+        else:
+            print(f"✅ Successfully loaded {len([img for img in self.balloon_changed_images if img is not None])} changed balloon images")
+        
         print("=" * 50)
 
     def start_game(self):
@@ -165,7 +210,7 @@ class BubblePopGameState:
         self.total_pause_time = 0
         
         # Ensure balloon images are loaded
-        if not self.balloon_images:
+        if not self.balloon_images or not self.balloon_changed_images:
             self.load_balloon_images()
     
     def pause_game(self):
@@ -252,7 +297,7 @@ class BubblePopGameState:
                 if distance < (bubble.size / 2) + palm_radius:
                     bubble.popped = True
                     bubble.popped_by_player = True
-                    bubble.pop_animation_frame = 1
+                    bubble.pop_start_time = datetime.now()
                     popped_bubbles.append(bubble)
                     print(f"Popped balloon with left palm at ({hand_x}, {hand_y})")
             
@@ -280,7 +325,7 @@ class BubblePopGameState:
                 if distance < (bubble.size / 2) + palm_radius:
                     bubble.popped = True
                     bubble.popped_by_player = True
-                    bubble.pop_animation_frame = 1
+                    bubble.pop_start_time = datetime.now()
                     popped_bubbles.append(bubble)
                     print(f"Popped balloon with right palm at ({hand_x}, {hand_y})")
         
@@ -291,7 +336,7 @@ class BubblePopGameState:
             print(f"Score increased to {self.score}, popped {points_earned} balloons")
         
     def check_bubble_lifetimes(self):
-        """Check if any bubbles have exceeded their lifetime and should fade out"""
+        """Check if any bubbles have exceeded their lifetime and should pop automatically"""
         now = datetime.now()
         expired_bubbles = []
         
@@ -299,34 +344,35 @@ class BubblePopGameState:
             if bubble.popped:
                 continue
                 
-            # Check if bubble has exceeded its lifetime significantly (fade out period)
+            # Check if bubble has exceeded its lifetime
             bubble_age = (now - bubble.created_at).total_seconds()
-            if bubble_age >= bubble.lifetime + 2.0:  # Give 2 extra seconds for fade out
+            if bubble_age >= bubble.lifetime:
                 bubble.popped = True
                 bubble.popped_by_player = False
-                bubble.pop_animation_frame = 1
+                bubble.pop_start_time = datetime.now()
                 expired_bubbles.append(bubble)
         
-        # Apply penalties for expired bubbles (when they fully disappear)
+        # Apply penalties for expired bubbles
         if expired_bubbles:
             penalty = len(expired_bubbles) * DIFFICULTY_LEVELS[self.difficulty]["score_penalty"]
             self.penalties += penalty
             self.score = max(0, self.score - penalty)
-            print(f"{len(expired_bubbles)} balloons faded away! Penalty: -{penalty}, New score: {self.score}")
+            print(f"{len(expired_bubbles)} balloons expired! Penalty: -{penalty}, New score: {self.score}")
     
     def clean_bubbles(self):
-        """Remove popped bubbles after animation"""
+        """Remove popped bubbles after showing changed image for 3 seconds"""
         initial_count = len(self.bubbles)
         new_bubbles = []
+        current_time = datetime.now()
         
         for bubble in self.bubbles:
-            if bubble.popped:
-                # Show pop animation for a few frames
-                bubble.pop_animation_frame += 1
-                if bubble.pop_animation_frame < 15:  # Show animation for 15 frames
+            if bubble.popped and bubble.pop_start_time:
+                # Show changed image for 3 seconds, then remove
+                time_since_pop = (current_time - bubble.pop_start_time).total_seconds()
+                if time_since_pop < 3.0:  # Show for 3 seconds
                     new_bubbles.append(bubble)
                 # Otherwise, remove the bubble (don't add to new_bubbles)
-            else:
+            elif not bubble.popped:
                 new_bubbles.append(bubble)
                 bubble.age += 1
         
@@ -428,7 +474,7 @@ class BubblePopGameState:
                     balloon_img[y, x, 0] = min(255, color[0] + highlight * 100)  # B
                     balloon_img[y, x, 1] = min(255, color[1] + highlight * 100)  # G
                     balloon_img[y, x, 2] = min(255, color[2] + highlight * 100)  # R
-                    balloon_img[y, x, 3] = int(255 * highlight_factor)  # Alpha
+                    balloon_img[y, x, 3] = 255  # Full opacity - no fading
         
         # Add balloon string
         string_start_y = int(size * 0.75)
@@ -445,11 +491,54 @@ class BubblePopGameState:
         
         return balloon_img
     
+    def create_popped_balloon_shape(self, size, color):
+        """Create a popped balloon shape programmatically as fallback"""
+        balloon_img = np.zeros((int(size * 1.4), int(size), 4), dtype=np.uint8)
+        
+        # Create burst/explosion effect
+        center_x, center_y = int(size / 2), int(size * 0.4)
+        
+        # Draw irregular burst lines
+        for angle in range(0, 360, 30):
+            rad = math.radians(angle)
+            for length in range(5, int(size * 0.6), 3):
+                # Add some randomness to the burst lines
+                noise_x = random.randint(-3, 3)
+                noise_y = random.randint(-3, 3)
+                
+                end_x = int(center_x + math.cos(rad) * length + noise_x)
+                end_y = int(center_y + math.sin(rad) * length + noise_y)
+                
+                if 0 <= end_x < balloon_img.shape[1] and 0 <= end_y < balloon_img.shape[0]:
+                    # Full intensity - no fading
+                    balloon_img[end_y, end_x, 0] = color[0]  # B
+                    balloon_img[end_y, end_x, 1] = color[1]  # G
+                    balloon_img[end_y, end_x, 2] = color[2]  # R
+                    balloon_img[end_y, end_x, 3] = 255  # Full opacity
+        
+        # Add some scattered particles
+        for _ in range(20):
+            particle_x = random.randint(0, balloon_img.shape[1] - 1)
+            particle_y = random.randint(0, balloon_img.shape[0] - 1)
+            
+            # Distance from center affects intensity
+            dist_from_center = math.sqrt((particle_x - center_x)**2 + (particle_y - center_y)**2)
+            if dist_from_center < size * 0.8:
+                balloon_img[particle_y, particle_x, 0] = color[0]
+                balloon_img[particle_y, particle_x, 1] = color[1]
+                balloon_img[particle_y, particle_x, 2] = color[2]
+                balloon_img[particle_y, particle_x, 3] = 255
+        
+        return balloon_img
+    
     def overlay_balloon_image(self, img, bubble):
         """Overlay the balloon PNG image or created balloon on the game frame"""
-        # Calculate floating animation
-        bob_amplitude = 3
-        bob_y = bubble.y + bob_amplitude * math.sin((self.animation_frame * 0.1) + bubble.bob_offset)
+        # Calculate floating animation (only for non-popped balloons)
+        if not bubble.popped:
+            bob_amplitude = 3
+            bob_y = bubble.y + bob_amplitude * math.sin((self.animation_frame * 0.1) + bubble.bob_offset)
+        else:
+            bob_y = bubble.y  # No floating animation when popped
         
         # Calculate the size to display the balloon
         balloon_width = int(bubble.size)
@@ -465,35 +554,34 @@ class BubblePopGameState:
             x_pos < 0 or y_pos < 0):
             return
         
-        # Use PNG image if available, otherwise create programmatic balloon
-        if self.balloon_images:
-            # Select balloon image randomly from available ones
-            balloon_image = self.balloon_images[bubble.balloon_image_index % len(self.balloon_images)]
-            resized_balloon = cv2.resize(balloon_image, (balloon_width, balloon_height))
-        else:
-            # Create programmatic balloon
-            resized_balloon = self.create_balloon_shape(bubble.size, bubble.color)
-            resized_balloon = cv2.resize(resized_balloon, (balloon_width, balloon_height))
-        
-        # Check if resized balloon has an alpha channel
-        if len(resized_balloon.shape) == 3 and resized_balloon.shape[2] == 4:
-            # Extract alpha channel
-            alpha = resized_balloon[:, :, 3] / 255.0
-            
-            # Calculate remaining lifetime percentage with fade-out period
-            bubble_age = (datetime.now() - bubble.created_at).total_seconds()
-            
-            if bubble_age <= bubble.lifetime:
-                # Normal lifetime - full to fade
-                remaining_pct = max(0, 1 - (bubble_age / bubble.lifetime))
+        # Choose the appropriate image based on bubble state
+        if bubble.popped:
+            # Use changed/popped image
+            if (self.balloon_changed_images and 
+                bubble.balloon_image_index < len(self.balloon_changed_images) and
+                self.balloon_changed_images[bubble.balloon_image_index] is not None):
+                balloon_image = self.balloon_changed_images[bubble.balloon_image_index]
+                resized_balloon = cv2.resize(balloon_image, (balloon_width, balloon_height))
             else:
-                # Extended fade-out period (2 seconds)
-                fade_time = bubble_age - bubble.lifetime
-                fade_duration = 2.0
-                remaining_pct = max(0, 1 - (fade_time / fade_duration)) * 0.3  # Fade to 30% then to 0
-            
-            # Apply lifetime fading to alpha
-            alpha = alpha * remaining_pct
+                # Fallback to programmatic popped balloon
+                resized_balloon = self.create_popped_balloon_shape(bubble.size, bubble.color)
+                resized_balloon = cv2.resize(resized_balloon, (balloon_width, balloon_height))
+        else:
+            # Use normal balloon image
+            if (self.balloon_images and 
+                bubble.balloon_image_index < len(self.balloon_images) and
+                self.balloon_images[bubble.balloon_image_index] is not None):
+                balloon_image = self.balloon_images[bubble.balloon_image_index]
+                resized_balloon = cv2.resize(balloon_image, (balloon_width, balloon_height))
+            else:
+                # Fallback to programmatic balloon
+                resized_balloon = self.create_balloon_shape(bubble.size, bubble.color)
+                resized_balloon = cv2.resize(resized_balloon, (balloon_width, balloon_height))
+        
+        # Apply the balloon image to the frame
+        if len(resized_balloon.shape) == 3 and resized_balloon.shape[2] == 4:
+            # Extract alpha channel - no fading effects, just use original alpha
+            alpha = resized_balloon[:, :, 3] / 255.0
             
             # Calculate region for overlay
             y1, y2 = y_pos, y_pos + balloon_height
@@ -508,59 +596,15 @@ class BubblePopGameState:
                 for c in range(3):
                     # Overlay the balloon onto the image
                     img[y1:y2, x1:x2, c] = (1 - alpha) * bg_region[:, :, c] + alpha * resized_balloon[:, :, c]
-                
-                # Timer indicator removed - balloons will fade naturally
         else:
-            # No alpha channel, simple overlay with lifetime fading
-            bubble_age = (datetime.now() - bubble.created_at).total_seconds()
-            
-            if bubble_age <= bubble.lifetime:
-                # Normal lifetime - full to fade
-                remaining_pct = max(0, 1 - (bubble_age / bubble.lifetime))
-            else:
-                # Extended fade-out period (2 seconds)
-                fade_time = bubble_age - bubble.lifetime
-                fade_duration = 2.0
-                remaining_pct = max(0, 1 - (fade_time / fade_duration)) * 0.3  # Fade to 30% then to 0
-            
+            # No alpha channel, simple overlay - no fading effects
             y1, y2 = y_pos, y_pos + balloon_height
             x1, x2 = x_pos, x_pos + balloon_width
             
             if y1 >= 0 and y2 <= img.shape[0] and x1 >= 0 and x2 <= img.shape[1]:
-                # Apply fading by blending with background
-                bg_region = img[y1:y2, x1:x2]
+                # Direct overlay without any fading
                 balloon_region = resized_balloon[:, :, :3] if resized_balloon.shape[2] > 3 else resized_balloon
-                img[y1:y2, x1:x2] = (1 - remaining_pct) * bg_region + remaining_pct * balloon_region
-    
-    def draw_pop_animation(self, img, bubble):
-        """Draw balloon popping animation"""
-        center_x = int(bubble.x + bubble.size / 2)
-        center_y = int(bubble.y + bubble.size / 2)
-        
-        # Create expanding circles for pop effect
-        for i in range(3):
-            radius = bubble.pop_animation_frame * (4 + i * 2)
-            alpha = max(0, 1 - (bubble.pop_animation_frame / 15))
-            
-            # Draw expanding rings
-            color_intensity = int(255 * alpha)
-            if bubble.popped_by_player:
-                color = (0, color_intensity, 0)  # Green for successful pop
-            else:
-                color = (0, 0, color_intensity)  # Red for timeout
-            
-            cv2.circle(img, (center_x, center_y), radius, color, 2)
-        
-        # Draw star burst lines
-        if bubble.pop_animation_frame < 8:
-            for angle in range(0, 360, 45):
-                rad = math.radians(angle)
-                line_length = bubble.pop_animation_frame * 6
-                end_x = int(center_x + math.cos(rad) * line_length)
-                end_y = int(center_y + math.sin(rad) * line_length)
-                
-                color = (255, 255, 255) if bubble.popped_by_player else (100, 100, 255)
-                cv2.line(img, (center_x, center_y), (end_x, end_y), color, 2)
+                img[y1:y2, x1:x2] = balloon_region
     
     def render_frame(self):
         """Render the current game state to an image"""
@@ -598,12 +642,7 @@ class BubblePopGameState:
         
         # Draw balloons using PNG images or programmatic shapes
         for bubble in self.bubbles:
-            if bubble.popped and bubble.pop_animation_frame > 0:
-                # Draw pop animation
-                self.draw_pop_animation(img, bubble)
-            elif not bubble.popped:
-                # Only render bubbles that haven't been popped
-                self.overlay_balloon_image(img, bubble)
+            self.overlay_balloon_image(img, bubble)
         
         # Draw hand indicators if detected
         if self.left_hand or self.right_hand:
@@ -624,8 +663,6 @@ class BubblePopGameState:
                 cv2.circle(img, (hand_x, hand_y), glow_radius, (100, 200, 255), -1)
                 cv2.circle(img, (hand_x, hand_y), glow_radius, (255, 255, 255), 3)
                 cv2.circle(img, (hand_x, hand_y), 15, (0, 150, 255), -1)
-                
-                # Hand landmarks removed for cleaner look
             
             if self.right_hand:
                 # Use palm center if available, otherwise use position
@@ -641,8 +678,6 @@ class BubblePopGameState:
                 cv2.circle(img, (hand_x, hand_y), glow_radius, (100, 255, 200), -1)
                 cv2.circle(img, (hand_x, hand_y), glow_radius, (255, 255, 255), 3)
                 cv2.circle(img, (hand_x, hand_y), 15, (0, 255, 150), -1)
-                
-                # Hand landmarks removed for cleaner look
         
         # Draw enhanced HUD overlay
         hud_height = 80
@@ -693,6 +728,9 @@ class BubblePopGameState:
                         
             cv2.putText(img, f"Balloons Missed: {self.penalties}", (GAME_WIDTH//2 - 120, GAME_HEIGHT//2 + 100), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 100, 100), 2)
+        
+        # Increment animation frame
+        self.animation_frame += 1
         
         # Convert to base64 for sending over WebSocket
         success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
