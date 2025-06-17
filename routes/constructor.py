@@ -14,7 +14,7 @@ import math
 # Game constants
 GAME_WIDTH = 800
 GAME_HEIGHT = 600
-PREVIEW_DURATION = 10  # 10 seconds like in the original ConstructorWithGames.py
+PREVIEW_DURATION = 5  # Reduced from 10 seconds
 SNAP_THRESHOLD = 40
 PLACEMENT_SCORE = 10
 TIME_BONUS_MULTIPLIER = 0.5
@@ -68,7 +68,7 @@ class GamePiece:
                         loaded_img = cv2.cvtColor(loaded_img, cv2.COLOR_BGR2BGRA)
 
                     # Resize to consistent size but keep original appearance
-                    scale_factor = 0.4  # Smaller for better performance
+                    scale_factor = 0.4  # Original scale for better quality
                     processed_img = cv2.resize(loaded_img, (0, 0), fx=scale_factor, fy=scale_factor)
 
                     # Only replace fallback if processing was successful
@@ -88,7 +88,7 @@ class GamePiece:
 
     def _create_fallback_image(self):
         """Create a fallback image if the actual image can't be loaded"""
-        canvas_size = 60  # Smaller for better performance
+        canvas_size = 60  # Original size for better quality
         self.image = np.zeros((canvas_size, canvas_size, 4), dtype=np.uint8)
         center = canvas_size // 2
 
@@ -203,8 +203,8 @@ class ConstructorGameState:
         # Camera frame storage
         self.current_camera_frame = None
 
-        # FPS control - optimized for better performance
-        self.fps = 30  # Reduced from 60 for better performance
+        # FPS control - optimized for responsive movement
+        self.fps = 45  # Higher FPS for smooth movement
         self.frame_time = 1 / self.fps
 
         print(f"Constructor game initialized with ID: {game_id}")
@@ -214,7 +214,7 @@ class ConstructorGameState:
         try:
             if hasattr(self, 'preview_image') and self.preview_image is not None:
                 # Create a smaller reference image for better performance
-                small_ref = cv2.resize(self.preview_image, (150, 112))  # Smaller but proportional
+                small_ref = cv2.resize(self.preview_image, (150, 112))  # Original size
 
                 # Add a thin border
                 bordered = cv2.copyMakeBorder(small_ref, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=[255, 255, 255])
@@ -498,7 +498,7 @@ class ConstructorGameState:
                                 self.score += placement_points
                                 print(f"🎯 Piece {piece.piece_id + 1} placed! +{placement_points} points")
 
-                            print(f"📊 Progress: {self.pieces_placed}/{self.total_pieces}, Score: {self.score}")
+
 
     def update_game_state(self):
         """Update game state"""
@@ -610,7 +610,7 @@ class ConstructorGameState:
             "spatial_reasoning": min(100, (completion_rate + order_accuracy) / 2),
             "memory": min(100, order_accuracy * 0.9 + time_efficiency * 0.1),
             "creativity": min(100, self.score / (
-                        self.total_pieces * (PLACEMENT_SCORE + 7)) * 100) if self.total_pieces > 0 else 0
+                    self.total_pieces * (PLACEMENT_SCORE + 7)) * 100) if self.total_pieces > 0 else 0
         }
 
     async def _persist_to_database(self, result, skill_metrics):
@@ -697,7 +697,7 @@ class ConstructorGameState:
                 self._draw_game_over(img)
 
             # Convert to base64
-            success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 75])
             if success:
                 return f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
             return None
@@ -708,7 +708,7 @@ class ConstructorGameState:
             img = np.zeros((GAME_HEIGHT, GAME_WIDTH, 3), dtype=np.uint8)
             cv2.putText(img, "Rendering Error", (GAME_WIDTH // 2 - 100, GAME_HEIGHT // 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            success, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 75])
             if success:
                 return f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
             return None
@@ -722,7 +722,7 @@ class ConstructorGameState:
         return img
 
     def _draw_preview(self, img):
-        """Draw preview screen"""
+        """Draw preview screen with level thumbnails"""
         level_data = LEVELS[self.selected_level - 1]
 
         # Title overlay on preview image
@@ -746,30 +746,170 @@ class ConstructorGameState:
         # Countdown
         time_left = PREVIEW_DURATION - (datetime.now() - self.preview_start_time).total_seconds()
         cv2.putText(img, f"Starting in: {int(time_left + 1)}s",
-                    (GAME_WIDTH // 2 - 80, GAME_HEIGHT - 100),
+                    (GAME_WIDTH // 2 - 80, GAME_HEIGHT - 150),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+
+        # Draw level thumbnails gallery
+        self._draw_level_thumbnails(img)
+
+        # Add current level reference in bottom-right corner
+        try:
+            if hasattr(self, 'preview_image') and self.preview_image is not None:
+                small_preview = cv2.resize(self.preview_image, (120, 90))
+                ref_x = GAME_WIDTH - 120 - 10
+                ref_y = GAME_HEIGHT - 90 - 10
+                bordered = cv2.copyMakeBorder(small_preview, 3, 3, 3, 3, cv2.BORDER_CONSTANT, value=[255, 255, 255])
+
+                border_h, border_w = bordered.shape[:2]
+                if ref_y >= 0 and ref_x >= 0 and ref_x + border_w <= GAME_WIDTH and ref_y + border_h <= GAME_HEIGHT:
+                    img[ref_y:ref_y + border_h, ref_x:ref_x + border_w] = bordered
+                    cv2.putText(img, "BUILD THIS:", (ref_x - 5, ref_y - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+        except Exception as e:
+            print(f"❌ Error adding current level reference: {e}")
+
+    def _draw_simple_level_gallery(self, img):
+        """Draw a simple, highly visible level gallery"""
+        try:
+            # Very simple and visible gallery
+            start_x = 100
+            start_y = 280
+
+            # Big bright background
+            cv2.rectangle(img, (start_x - 20, start_y - 30), (start_x + 400, start_y + 80), (0, 0, 0), -1)
+            cv2.rectangle(img, (start_x - 20, start_y - 30), (start_x + 400, start_y + 80), (255, 255, 0), 3)
+
+            # Title
+            cv2.putText(img, "LEVELS:", (start_x, start_y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 3)
+
+            # Draw level boxes
+            for i in range(5):  # Show only first 5 levels
+                level_num = i + 1
+                box_x = start_x + i * 70
+                box_y = start_y
+                box_size = 50
+
+                # Color based on current level
+                if level_num == self.selected_level:
+                    color = (0, 255, 255)  # Bright cyan for current level
+                    thickness = 5
+                else:
+                    color = (100, 100, 255)  # Blue for other levels
+                    thickness = 2
+
+                # Draw level box
+                cv2.rectangle(img, (box_x, box_y), (box_x + box_size, box_y + box_size), color, thickness)
+                cv2.rectangle(img, (box_x + 5, box_y + 5), (box_x + box_size - 5, box_y + box_size - 5), color, -1)
+
+                # Level number
+                cv2.putText(img, str(level_num), (box_x + 18, box_y + 32),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
+
+                # Level name
+                level_name = LEVELS[i]["name"][:6]
+                cv2.putText(img, level_name, (box_x - 5, box_y + box_size + 15),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+
+            print(f"✅ Simple level gallery drawn - current level: {self.selected_level}")
+
+        except Exception as e:
+            print(f"❌ Error drawing simple level gallery: {e}")
+            # Super simple fallback
+            cv2.putText(img, f"CURRENT: LEVEL {self.selected_level}", (100, 300),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 3)
+
+        print(f"🔍 Preview phase drawing executed for level {self.selected_level}")
+
+    def _draw_level_thumbnails(self, img):
+        """Draw thumbnails of all available levels"""
+        try:
+            # Configuration for thumbnail gallery
+            thumb_size = 60  # Small thumbnail size
+            spacing = 70  # Space between thumbnails
+            start_x = 50  # Starting X position
+            start_y = GAME_HEIGHT - 120  # Position near bottom
+
+            cv2.putText(img, "ALL LEVELS:", (start_x, start_y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+            for i, level_data in enumerate(LEVELS):
+                # Calculate position
+                thumb_x = start_x + (i % 5) * spacing  # 5 thumbnails per row
+                thumb_y = start_y + (i // 5) * spacing  # New row every 5 thumbnails
+
+                # Try to load level preview image
+                level_folder = os.path.join(CONSTRUCTOR_ASSETS_PATH, level_data["folder"])
+                preview_path = os.path.join(level_folder, f"level{level_data['level']}.png")
+
+                thumbnail = None
+                if os.path.exists(preview_path):
+                    try:
+                        level_img = cv2.imread(preview_path)
+                        if level_img is not None:
+                            thumbnail = cv2.resize(level_img, (thumb_size, thumb_size))
+                    except Exception as e:
+                        print(f"Error loading thumbnail for level {level_data['level']}: {e}")
+
+                # Create fallback thumbnail if loading failed
+                if thumbnail is None:
+                    thumbnail = np.zeros((thumb_size, thumb_size, 3), dtype=np.uint8)
+                    # Use level-specific colors
+                    colors = [
+                        (200, 100, 100), (100, 200, 100), (100, 100, 200), (200, 200, 100),
+                        (200, 100, 200), (100, 200, 200), (200, 150, 100), (150, 200, 100),
+                        (100, 150, 200)
+                    ]
+                    color = colors[i % len(colors)]
+                    thumbnail.fill(color[0])
+                    cv2.rectangle(thumbnail, (5, 5), (thumb_size - 5, thumb_size - 5), color, -1)
+                    cv2.rectangle(thumbnail, (2, 2), (thumb_size - 2, thumb_size - 2), (255, 255, 255), 2)
+
+                # Add level number to thumbnail
+                cv2.putText(thumbnail, str(level_data['level']),
+                            (thumb_size // 2 - 8, thumb_size // 2 + 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+                # Highlight current level with bright border
+                if level_data['level'] == self.selected_level:
+                    cv2.rectangle(thumbnail, (0, 0), (thumb_size - 1, thumb_size - 1), (255, 255, 0), 3)
+
+                # Place thumbnail on main image
+                if (thumb_x + thumb_size < GAME_WIDTH and thumb_y + thumb_size < GAME_HEIGHT):
+                    img[thumb_y:thumb_y + thumb_size, thumb_x:thumb_x + thumb_size] = thumbnail
+
+                    # Add level name below thumbnail
+                    short_name = level_data["name"][:8] + "..." if len(level_data["name"]) > 8 else level_data["name"]
+                    cv2.putText(img, short_name, (thumb_x - 5, thumb_y + thumb_size + 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+
+        except Exception as e:
+            print(f"❌ Error drawing level thumbnails: {e}")
+            # Fallback: just show text list
+            cv2.putText(img, "Levels 1-9 available", (50, GAME_HEIGHT - 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
+        print(f"🔍 Preview phase drawing executed for level {self.selected_level}")
 
     def _draw_game(self, img):
         """Draw active game with reference image and scoring feedback"""
-        # Draw small reference image at top-right
+        # Draw small reference image at middle-right
         try:
             ref_img = self.get_small_reference_image()
             if ref_img is not None:
                 ref_h, ref_w = ref_img.shape[:2]
                 ref_x = GAME_WIDTH - ref_w - 10
-                ref_y = 10
+                ref_y = (GAME_HEIGHT - ref_h) // 2  # Changed to middle-right position
 
                 # Overlay the reference image
                 if ref_y + ref_h <= GAME_HEIGHT and ref_x + ref_w <= GAME_WIDTH:
                     img[ref_y:ref_y + ref_h, ref_x:ref_x + ref_w] = ref_img
 
-                    # Add small label
-                    cv2.putText(img, "Build:", (ref_x, ref_y - 3),
+                    # Add small label above the image
+                    cv2.putText(img, "", (ref_x, ref_y - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         except Exception as e:
             print(f"❌ Error drawing reference image: {e}")
-
-        # NO TARGET CIRCLES - removed the numbered circles with red frames
 
         # Draw pieces with original colors preserved
         try:
@@ -800,7 +940,7 @@ class ConstructorGameState:
 
                 # Draw status indicators
                 if piece.is_placed_correctly:
-                    # Small green checkmark 
+                    # Small green checkmark
                     x, y = piece.position
                     h, w = piece.size if hasattr(piece, 'size') else (60, 60)
                     center_x = int(x + w // 2)
@@ -825,7 +965,7 @@ class ConstructorGameState:
         except Exception as e:
             print(f"❌ Error drawing pieces: {e}")
 
-        # Draw hand indicators (smaller for performance)
+        # Draw hand indicators
         try:
             self._draw_hands(img)
         except Exception as e:
@@ -865,13 +1005,28 @@ class ConstructorGameState:
         cv2.putText(img, f"Time: {self.time_remaining}s", (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
+
+
+        # Progress and Score (left side, below level info)
+
+
+        # Score with color coding
+        score_color = (100, 255, 100) if self.score > 0 else (255, 255, 255)
+        cv2.putText(img, f"Score: {self.score}", (20, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, score_color, 2)
+
+    def _draw_hud(self, img):
+        """Draw HUD with proper spacing for reference image and detailed scoring"""
+        # Left side HUD - Timer and Level info
+        cv2.putText(img, f"Time: {self.time_remaining}s", (20, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
         level_name = LEVELS[self.selected_level - 1]["name"]
         cv2.putText(img, f"Level {self.selected_level}: {level_name}",
                     (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
         # Progress and Score (left side, below level info)
-        cv2.putText(img, f"Progress: {self.pieces_placed}/{self.total_pieces}",
-                    (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
 
         # Score with color coding
         score_color = (100, 255, 100) if self.score > 0 else (255, 255, 255)
