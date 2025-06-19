@@ -498,14 +498,12 @@ class ConstructorGameState:
                                 self.score += placement_points
                                 print(f"🎯 Piece {piece.piece_id + 1} placed! +{placement_points} points")
 
-
-
     def update_game_state(self):
         """Update game state"""
         if not self.game_started:
             return
 
-    now = datetime.now()
+        now = datetime.now()
 
         # Handle preview phase
         if self.showing_preview:
@@ -518,8 +516,8 @@ class ConstructorGameState:
                 print(f"🎬 Preview ended, starting level {self.selected_level}")
             return
 
-    if not self.game_active or self.game_over:
-        return
+        if not self.game_active or self.game_over:
+            return
 
         self.last_update = now
 
@@ -1006,28 +1004,11 @@ class ConstructorGameState:
         cv2.putText(img, f"Time: {self.time_remaining}s", (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-
-
-        # Progress and Score (left side, below level info)
-
-
-        # Score with color coding
-        score_color = (100, 255, 100) if self.score > 0 else (255, 255, 255)
-        cv2.putText(img, f"Score: {self.score}", (20, 150),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, score_color, 2)
-
-    def _draw_hud(self, img):
-        """Draw HUD with proper spacing for reference image and detailed scoring"""
-        # Left side HUD - Timer and Level info
-        cv2.putText(img, f"Time: {self.time_remaining}s", (20, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-
         level_name = LEVELS[self.selected_level - 1]["name"]
         cv2.putText(img, f"Level {self.selected_level}: {level_name}",
                     (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
         # Progress and Score (left side, below level info)
-
 
         # Score with color coding
         score_color = (100, 255, 100) if self.score > 0 else (255, 255, 255)
